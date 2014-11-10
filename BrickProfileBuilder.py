@@ -43,6 +43,14 @@ class Bricks(object):
         print speed
         return self.lin(duration) * speed
 
+    def acc(self, vel_start, vel_end, duration):
+        if vel_start < vel_end:
+            sin_intv = self.sin(-np.pi/2, np.pi/2, duration)
+            vel_low, vel_hi = vel_start, vel_end
+        else:
+            sin_intv = self.sin(np.pi/2, np.pi*3/2, duration)
+            vel_low, vel_hi = vel_end, vel_start
+        return (sin_intv + 1) / 2 * (vel_hi - vel_low) + vel_low
 
 class GeneralMovement(object):
     def __init__(self, profile):
@@ -75,39 +83,57 @@ class ROSBridge(object):
         print '-'*50
 
     def exec_timeline(self, timeline):
-        twist = Twist()
-        for d in timeline:
-            #twist.linear.x = d
-            twist.angular.z = d
+
+        for step in range(max([len(timeline['x']), len(timeline['y']), len(timeline['th'])])):
+            twist = Twist()
+            if step < len(timeline['x']):
+                twist.linear.x = timeline['x'][step]
+            if step < len(timeline['y']):
+                twist.linear.y = timeline['y'][step]
+            if step < len(timeline['th']):
+                twist.angular.z = timeline['th'][step]
+
             self.pub.publish(twist)
             time.sleep(self.profile.sample_time)
 
 
-
 if __name__ == '__main__':
 
-    TIMELINE = np.array([], np.float)
+    TIMELINE = dict()
+    TIMELINE['x'] = np.array([], np.float)
+    TIMELINE['y'] = np.array([], np.float)
+    TIMELINE['th'] = np.array([], np.float)
 
     profile = Profile(rate=100, max_linear_velocity=0.2, max_angular_velocity=0.4)
     bricks = Bricks(profile)
 
     boring = BoringMovement(profile)
 
-    #TIMELINE = bricks.lin_dist(0.25, 4)
-    #TIMELINE = np.append(TIMELINE, bricks.lin_dist(0.25, 2))
+    TIMELINE['x'] = np.append(TIMELINE['x'], bricks.lin(0.5)*0)
+    #TIMELINE['x'] = np.append(TIMELINE['x'], bricks.lin(2)*0.2)
 
-    #print TIMELINE
+    #TIMELINE['x'] = np.append(TIMELINE['x'], bricks.lin_dist(0, 1))
+
+    #acc prof (speed, dur)
+    TIMELINE['x'] = np.append(TIMELINE['x'], bricks.acc(0, 0.2, 1.5))
+    TIMELINE['x'] = np.append(TIMELINE['x'], bricks.lin(3)*0.2)
+    TIMELINE['x'] = np.append(TIMELINE['x'], bricks.acc(0.2, 0, 1.5))
+    #TIMELINE['x'] = np.append(TIMELINE['x'], bricks.acc(0.4, 0, 1.5))
+
+
     # A f phi T
-    TIMELINE = bricks.sin_t(0.2, 1, np.pi/2, 5) 
-    
-    
-    
+    TIMELINE['th'] = np.append(TIMELINE['th'], bricks.lin(2)*0)
+    TIMELINE['th'] = np.append(TIMELINE['th'], bricks.lin(3)*-0.15)  # TODO: kreisbahn... v, r, th
+    #TIMELINE['th'] = np.append(TIMELINE['th'], bricks.lin_dist(0, 1))
+    #TIMELINE['th'] = np.append(TIMELINE['th'], bricks.sin_t(0.2, 1.0/5, 0, 5))
 
-    bridge = ROSBridge(profile)
+
+    bridge = ROSBridge(profile, fakerun=False)
     bridge.exec_timeline(TIMELINE)
 
+
     fig, (ax) = plt.subplots(nrows=1, ncols=1)
-    ax.plot(TIMELINE)
+    ax.plot(TIMELINE['x'])
 
     plt.tight_layout()
     #plt.show()
