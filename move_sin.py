@@ -7,35 +7,30 @@ import numpy as np
 import time
 
 
-x = np.linspace(0, np.pi * 2, 200)
+dofake = False
+
+class Dummy(object):
+    pass
+
+def pub_fake(msg):
+    print msg
+
+x = np.linspace(0, np.pi * 2, 600)
 xsin = np.sin(x)
-maxvel = 0.1
+maxvel = 0.2
 xsin *= maxvel
 
 xTwist = Twist()
 
-rospy.init_node('VID_TEST')
-pub = rospy.Publisher('/base_controller/command', Twist)
+if not dofake:
+    rospy.init_node('VID_TEST')
+    pub = rospy.Publisher('/base_controller/command', Twist)
+else:
+    pub = Dummy()
+    pub.publish = pub_fake
 
-for vel in xsin:
-    xTwist.linear.x = vel
-    pub.publish(xTwist)
-    time.sleep(0.01)
-
-'''
-stopTwist = Twist()
-print stopTwist
-print xTwist
-
-rospy.init_node('VID_TEST')
-pub = rospy.Publisher('/base_controller/command', Twist)
-
-
-time.sleep(1)
-pub.publish(xTwist)
-time.sleep(1)
-pub.publish(stopTwist)
-
-'''
-#while not rospy.is_shutdown():
-#    pass
+for i in range(2):
+    for vel in xsin:
+        xTwist.linear.x = vel
+        pub.publish(xTwist)
+        time.sleep(0.01)
