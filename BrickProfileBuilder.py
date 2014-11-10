@@ -6,7 +6,7 @@ from geometry_msgs.msg import Twist
 import numpy as np
 import time
 
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 class Profile(object):
     def __init__(self, rate, max_linear_velocity, max_angular_velocity):
@@ -27,6 +27,11 @@ class Bricks(object):
     def sin(self, start, stop, duration):
         return np.sin(np.linspace(start, stop, self.calc_samples(duration)))
 
+    def sin_t(self, A, f, phi, T):
+        #return np.sin(np.linspace(0, np.pi*2 * f*T, self.calc_samples(T)))
+        return A * self.sin(phi, f*np.pi*2*T+phi, T)
+    
+    
     def cos(self, start, stop, duration):
         return np.cos(np.linspace(start, stop, self.calc_samples(duration)))
 
@@ -55,12 +60,12 @@ class ROSBridge(object):
     class Dummy(object):
         pass
 
-    def __init__(self, profile, fakerun=True):
+    def __init__(self, profile, fakerun=False):
         self.profile = profile
 
         if not fakerun:
             rospy.init_node('VID_TEST')
-            self.pub = rospy.Publisher('/base_controller/command', Twist)
+            self.pub = rospy.Publisher('/base_controller/command_direct', Twist)
         else:
             self.pub = ROSBridge.Dummy()
             self.pub.publish = self.print_fakerun
@@ -72,7 +77,8 @@ class ROSBridge(object):
     def exec_timeline(self, timeline):
         twist = Twist()
         for d in timeline:
-            twist.linear.x = d
+            #twist.linear.x = d
+            twist.angular.z = d
             self.pub.publish(twist)
             time.sleep(self.profile.sample_time)
 
@@ -87,17 +93,22 @@ if __name__ == '__main__':
 
     boring = BoringMovement(profile)
 
-    TIMELINE = bricks.lin_dist(1, 10)
+    #TIMELINE = bricks.lin_dist(0.25, 4)
+    #TIMELINE = np.append(TIMELINE, bricks.lin_dist(0.25, 2))
 
     #print TIMELINE
-
+    # A f phi T
+    TIMELINE = bricks.sin_t(0.2, 1, np.pi/2, 5) 
+    
+    
+    
 
     bridge = ROSBridge(profile)
     bridge.exec_timeline(TIMELINE)
 
-    #fig, (ax) = plt.subplots(nrows=1, ncols=1)
-    #ax.plot(TIMELINE)
+    fig, (ax) = plt.subplots(nrows=1, ncols=1)
+    ax.plot(TIMELINE)
 
-    #plt.tight_layout()
+    plt.tight_layout()
     #plt.show()
 
