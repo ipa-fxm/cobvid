@@ -62,11 +62,46 @@ class Bricks(object):
         return (sin_intv + 1) / 2 * (velocity_hi - velocity_low) + velocity_low
 
     def circular_path_parameter(self, duration, radius, phi):
-        dphi = phi / self.calc_samples(duration)
-        theta = dphi / self.profile.sample_time
+        theta = phi / (np.pi + duration / 1.2)
+        print 'mit ', phi / (np.pi + 2 * duration / 1.2)
+        print '    ', phi / (np.pi + duration / 1.2)
+
+        #dphi = phi / self.calc_samples(np.pi + duration / 1.2)
+        #theta = dphi / self.profile.sample_time
         velocity = radius * theta
         return velocity, theta
 
+    def circular_path(self, duration, radius, phi):
+        # FIXME: hardcoded...
+        velocity_start = 0
+        velocity_end = 0
+
+
+        TLX = np.array([], np.float)
+        TLTH = np.array([], np.float)
+
+        vx, vtheta = self.circular_path_parameter(duration=duration, radius=radius, phi=phi)
+
+        # TODO add description...
+        if phi < 0:
+            vx*=-1
+
+        if radius < 0:
+            vtheta *= -1
+
+        # accelerate
+        TLX = np.append(TLX, self.acc(velocity_start=velocity_start, velocity_end=vx, duration=duration*0.1))
+        TLTH = np.append(TLTH, self.acc(velocity_start=velocity_start, velocity_end=vtheta, duration=duration*0.1))
+
+        # circular movement
+        TLX = np.append(TLX, self.lin(velocity=vx, duration=duration*0.8))
+        TLTH = np.append(TLTH, self.lin(velocity=vtheta, duration=duration*0.8))
+
+        # decelerate
+        TLX = np.append(TLX, self.acc(velocity_start=vx, velocity_end=velocity_end, duration=duration*0.1))
+        TLTH = np.append(TLTH, self.acc(velocity_start=vtheta, velocity_end=velocity_end, duration=duration*0.1))
+
+        return TLX, TLTH
 
 
 
@@ -141,20 +176,82 @@ if __name__ == '__main__':
     # KREISBAHN
     ############
 
-    velocity, theta = bricks.circular_path_parameter(duration=10, radius=1, phi=np.pi/2)
+    # vor links
+    tlx, tlth = bricks.circular_path(radius=0.5, phi=np.pi/2, duration=6)
+    TLX = np.append(TLX, tlx)
+    TLTH = np.append(TLTH, tlth)
+
+    # rück links
+    tlx, tlth = bricks.circular_path(radius=-0.5, phi=np.pi/2, duration=6)
+    TLX = np.append(TLX, tlx)
+    TLTH = np.append(TLTH, tlth)
+
+    # vor rechts
+    tlx, tlth = bricks.circular_path(radius=0.5, phi=-np.pi/2, duration=6)
+    TLX = np.append(TLX, tlx)
+    TLTH = np.append(TLTH, tlth)
+
+    # rück rechts
+    tlx, tlth = bricks.circular_path(radius=-0.5, phi=-np.pi/2, duration=6)
+    TLX = np.append(TLX, tlx)
+    TLTH = np.append(TLTH, tlth)
+
+
+
+
+
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+
+
+    '''
+
+    # rot 180°
+    ################
+    task_duration = 3
+
+    vx, vtheta = bricks.circular_path_parameter(duration=task_duration, radius=0, phi=np.pi)
+
+
+    TLTH = np.append(TLTH, bricks.lin(duration=task_duration, velocity=vtheta))
+
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+
+    # KREISBAHN
+    ############
+    task_duration = 5
+
+    vx, vtheta = bricks.circular_path_parameter(duration=task_duration, radius=0.5, phi=-np.pi/2)
+    print 'velocity, theta', vx, vtheta
 
     # accelerate
-    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=velocity, duration=1.5))
+    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=vx, duration=1.5))
 
     # sync lines
     TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
 
     # circular movement
-    TLX = np.append(TLX, bricks.lin(duration=10, velocity=velocity))
-    TLTH = np.append(TLTH, bricks.lin(duration=10, velocity=velocity))
+    TLX = np.append(TLX, bricks.lin(duration=task_duration, velocity=vx))
+    TLTH = np.append(TLTH, bricks.lin(duration=task_duration, velocity=vtheta))
 
     # decelerate
-    TLX = np.append(TLX, bricks.acc(velocity_start=velocity, velocity_end=0, duration=1.5))
+    TLX = np.append(TLX, bricks.acc(velocity_start=vx, velocity_end=0, duration=1.5))
+
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+
+    # rot 180°
+    ################
+    task_duration = 4
+
+    vx, vtheta = bricks.circular_path_parameter(duration=task_duration, radius=0, phi=-np.pi)
+
+
+    TLTH = np.append(TLTH, bricks.lin(duration=task_duration, velocity=vtheta))
 
     # sync lines
     TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
@@ -163,7 +260,7 @@ if __name__ == '__main__':
 
     #TLTH = np.append(TLTH, bricks.lin(duration=2, velocity=0))
     #TLTH = np.append(TLTH, bricks.lin(3)*-0.15)  # TODO: kreisbahn... v, r, th
-
+    '''
 
     TIMELINE = dict()
     TIMELINE['x'] = TLX
