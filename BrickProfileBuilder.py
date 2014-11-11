@@ -5,8 +5,7 @@ import rospy
 from geometry_msgs.msg import Twist
 import numpy as np
 import time
-
-import matplotlib.pyplot as plt
+import sys
 
 class Profile(object):
     def __init__(self, rate, max_linear_velocity, max_angular_velocity):
@@ -17,6 +16,7 @@ class Profile(object):
         self.max_angular_velocity = max_angular_velocity
 
 
+
 class Bricks(object):
     def __init__(self, profile):
         self.profile = profile
@@ -24,33 +24,51 @@ class Bricks(object):
     def calc_samples(self, duration):
         return duration / self.profile.sample_time
 
+    def evenMaxSamples(self, *args):
+        args = list(args)
+        max_samples = max(map(len, args))
+        for idx, sample_line in enumerate(args):
+            remaining_samples = max_samples - len(sample_line)
+            fill_data = np.zeros((remaining_samples), np.float)
+            args[idx] = np.append(sample_line, fill_data)
+        return args
+
+
     def sin(self, start, stop, duration):
         return np.sin(np.linspace(start, stop, self.calc_samples(duration)))
 
     def sin_t(self, A, f, phi, T):
         #return np.sin(np.linspace(0, np.pi*2 * f*T, self.calc_samples(T)))
         return A * self.sin(phi, f*np.pi*2*T+phi, T)
-    
-    
+
     def cos(self, start, stop, duration):
         return np.cos(np.linspace(start, stop, self.calc_samples(duration)))
 
-    def lin(self, duration):
-        return np.linspace(1, 1, self.calc_samples(duration))
+    def lin(self, duration, velocity=1):
+        return np.linspace(velocity, velocity, self.calc_samples(duration))
 
     def lin_dist(self, distance, duration):
         speed = float(distance) / float(duration)
         print speed
         return self.lin(duration) * speed
 
-    def acc(self, vel_start, vel_end, duration):
-        if vel_start < vel_end:
+    def acc(self, velocity_start, velocity_end, duration):
+        if velocity_start < velocity_end:
             sin_intv = self.sin(-np.pi/2, np.pi/2, duration)
-            vel_low, vel_hi = vel_start, vel_end
+            velocity_low, velocity_hi = velocity_start, velocity_end
         else:
             sin_intv = self.sin(np.pi/2, np.pi*3/2, duration)
-            vel_low, vel_hi = vel_end, vel_start
-        return (sin_intv + 1) / 2 * (vel_hi - vel_low) + vel_low
+            velocity_low, velocity_hi = velocity_end, velocity_start
+        return (sin_intv + 1) / 2 * (velocity_hi - velocity_low) + velocity_low
+
+    def circular_path_parameter(self, duration, radius, phi):
+        dphi = phi / self.calc_samples(duration)
+        theta = dphi / self.profile.sample_time
+        velocity = radius * theta
+        return velocity, theta
+
+
+
 
 class GeneralMovement(object):
     def __init__(self, profile):
@@ -99,42 +117,78 @@ class ROSBridge(object):
 
 if __name__ == '__main__':
 
-    TIMELINE = dict()
-    TIMELINE['x'] = np.array([], np.float)
-    TIMELINE['y'] = np.array([], np.float)
-    TIMELINE['th'] = np.array([], np.float)
+    is_fakerun = True if '-fakerun' in sys.argv else False
+    is_plot = True if '-plot' in sys.argv else False
+    is_ros = True if '-ros' in sys.argv else False
+
+
+    TLX = np.array([], np.float)
+    TLY = np.array([], np.float)
+    TLTH = np.array([], np.float)
 
     profile = Profile(rate=100, max_linear_velocity=0.2, max_angular_velocity=0.4)
     bricks = Bricks(profile)
 
     boring = BoringMovement(profile)
 
-    TIMELINE['x'] = np.append(TIMELINE['x'], bricks.lin(0.5)*0)
-    #TIMELINE['x'] = np.append(TIMELINE['x'], bricks.lin(2)*0.2)
+    # wait 0.5 sec
+    TLX = np.append(TLX, bricks.lin(duration=0.5, velocity=0))
 
-    #TIMELINE['x'] = np.append(TIMELINE['x'], bricks.lin_dist(0, 1))
-
-    #acc prof (speed, dur)
-    TIMELINE['x'] = np.append(TIMELINE['x'], bricks.acc(0, 0.2, 1.5))
-    TIMELINE['x'] = np.append(TIMELINE['x'], bricks.lin(3)*0.2)
-    TIMELINE['x'] = np.append(TIMELINE['x'], bricks.acc(0.2, 0, 1.5))
-    #TIMELINE['x'] = np.append(TIMELINE['x'], bricks.acc(0.4, 0, 1.5))
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
 
 
-    # A f phi T
-    TIMELINE['th'] = np.append(TIMELINE['th'], bricks.lin(2)*0)
-    TIMELINE['th'] = np.append(TIMELINE['th'], bricks.lin(3)*-0.15)  # TODO: kreisbahn... v, r, th
-    #TIMELINE['th'] = np.append(TIMELINE['th'], bricks.lin_dist(0, 1))
-    #TIMELINE['th'] = np.append(TIMELINE['th'], bricks.sin_t(0.2, 1.0/5, 0, 5))
+    # KREISBAHN
+    ############
+
+    velocity, theta = bricks.circular_path_parameter(duration=10, radius=1, phi=np.pi/2)
+
+    # accelerate
+    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=velocity, duration=1.5))
+
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    # circular movement
+    TLX = np.append(TLX, bricks.lin(duration=10, velocity=velocity))
+    TLTH = np.append(TLTH, bricks.lin(duration=10, velocity=velocity))
+
+    # decelerate
+    TLX = np.append(TLX, bricks.acc(velocity_start=velocity, velocity_end=0, duration=1.5))
+
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
 
 
-    bridge = ROSBridge(profile, fakerun=False)
-    bridge.exec_timeline(TIMELINE)
+
+    #TLTH = np.append(TLTH, bricks.lin(duration=2, velocity=0))
+    #TLTH = np.append(TLTH, bricks.lin(3)*-0.15)  # TODO: kreisbahn... v, r, th
 
 
-    fig, (ax) = plt.subplots(nrows=1, ncols=1)
-    ax.plot(TIMELINE['x'])
+    TIMELINE = dict()
+    TIMELINE['x'] = TLX
+    TIMELINE['y'] = TLY
+    TIMELINE['th'] = TLTH
 
-    plt.tight_layout()
-    #plt.show()
+    if is_ros:
+        bridge = ROSBridge(profile, fakerun=is_fakerun)
+        bridge.exec_timeline(TIMELINE)
+
+    if is_plot:
+        import matplotlib.pyplot as plt
+
+        fig, (ax) = plt.subplots(nrows=1, ncols=1)
+        TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+        max_samples = max([len(TLX), len(TLY), len(TLTH)])
+        xdata = np.linspace(0, profile.sample_time * max_samples, max_samples)
+
+        ax.plot(xdata, TLX)
+        ax.plot(xdata, TLY)
+        ax.plot(xdata, TLTH)
+
+
+        ax.legend(['X', 'Y', 'Theta'])
+
+        plt.tight_layout()
+        plt.show()
 
