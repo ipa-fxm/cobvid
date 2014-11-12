@@ -9,12 +9,14 @@ import sys
 from scipy import integrate
 
 class Profile(object):
-    def __init__(self, rate, max_linear_velocity, max_angular_velocity):
+    def __init__(self, rate, max_linear_velocity, max_angular_velocity, max_linear_acceleration, max_angular_acceleration):
         self.rate = float(rate)  # [Hz]
         self.sample_time = 1.0 / rate  # [s]
 
         self.max_linear_velocity = max_linear_velocity
         self.max_angular_velocity = max_angular_velocity
+        self.max_linear_acceleration = max_linear_acceleration
+        self.max_angular_acceleration = max_angular_acceleration
 
 
 
@@ -140,7 +142,8 @@ if __name__ == '__main__':
     TLY = np.array([], np.float)
     TLTH = np.array([], np.float)
 
-    profile = Profile(rate=100, max_linear_velocity=0.2, max_angular_velocity=0.4)
+    profile = Profile(rate=100, max_linear_velocity=0.4, max_angular_velocity=0.6,
+                      max_linear_acceleration=0.01, max_angular_acceleration=0.01)
     bricks = Bricks(profile)
 
     boring = BoringMovement(profile)
@@ -253,12 +256,15 @@ if __name__ == '__main__':
 
     if is_plot:
         import matplotlib.pyplot as plt
+        import matplotlib.collections as collections
         import scipy
 
         TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
         max_samples = max([len(TLX), len(TLY), len(TLTH)])
         tdata = np.linspace(0, profile.sample_time * max_samples, max_samples)
 
+
+        # distance / absphi
         TLXD = np.array([0], np.float)
         TLYD = np.array([0], np.float)
         TLTHD = np.array([0], np.float)
@@ -267,6 +273,15 @@ if __name__ == '__main__':
         TLYD = np.append(TLYD, integrate.cumtrapz(TLY, tdata))
         TLTHD = np.append(TLTHD, integrate.cumtrapz(TLTH, tdata))
 
+        # acceleration
+        TLXA = np.array([0], np.float)
+        TLYA = np.array([0], np.float)
+        TLTHA = np.array([0], np.float)
+
+        TLXA = np.append(TLXA, scipy.diff(TLX))
+        TLYA = np.append(TLYA, scipy.diff(TLY))
+        TLTHA = np.append(TLTHA, scipy.diff(TLTH))
+
         if plot_profile:
             fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1)
             legend = ['x', 'y', '$\\theta$']
@@ -274,35 +289,47 @@ if __name__ == '__main__':
             ax1.plot(tdata, TLXD)
             ax1.plot(tdata, TLYD)
             ax1.plot(tdata, TLTHD)
-            ax1.legend(legend)
+            ax1.legend(legend, loc=2)
             ax1.set_title('Distance')
+            ax1.grid(True)
 
             ##################################################
 
+            accwarn1 = np.abs(TLX) > profile.max_linear_velocity
+            accwarn2 = np.abs(TLY) > profile.max_linear_velocity
+            accwarn3 = np.abs(TLTH) > profile.max_angular_velocity
+            accwarn = np.logical_or(accwarn1, accwarn2)
+            accwarn = np.logical_or(accwarn, accwarn3)
+
+            collection = collections.BrokenBarHCollection.span_where(tdata, ymin=-1, ymax=1, where=accwarn, facecolor='black', alpha=0.2)
+            ax2.add_collection(collection)
 
             ax2.plot(tdata, TLX)
             ax2.plot(tdata, TLY)
             ax2.plot(tdata, TLTH)
-            ax2.legend(legend)
+            ax2.legend(legend, loc=2)
             ax2.set_title('Velocity')
+            ax2.grid(True)
 
             ##################################################
-
-
-            TLXA = np.array([0], np.float)
-            TLYA = np.array([0], np.float)
-            TLTHA = np.array([0], np.float)
-
-            TLXA = np.append(TLXA, scipy.diff(TLX))
-            TLYA = np.append(TLYA, scipy.diff(TLY))
-            TLTHA = np.append(TLTHA, scipy.diff(TLTH))
 
             ax3.plot(tdata, TLXA)
             ax3.plot(tdata, TLYA)
             ax3.plot(tdata, TLTHA)
-            ax3.legend(legend)
+            ax3.legend(legend, loc=2)
             ax3.set_title('Acceleration')
+            ax3.grid(True)
 
+            accwarn1 = np.abs(TLXA) > profile.max_linear_acceleration
+            accwarn2 = np.abs(TLYA) > profile.max_linear_acceleration
+            accwarn3 = np.abs(TLTHA) > profile.max_angular_acceleration
+            accwarn = np.logical_or(accwarn1, accwarn2)
+            accwarn = np.logical_or(accwarn, accwarn3)
+
+            collection = collections.BrokenBarHCollection.span_where(tdata, ymin=-1, ymax=1, where=accwarn, facecolor='black', alpha=0.2)
+            ax3.add_collection(collection)
+
+            plt.tight_layout()
         ##################################################
         # MAP
         ##################################################
@@ -316,18 +343,54 @@ if __name__ == '__main__':
             x = integrate.cumtrapz(x, tdata)
             y = integrate.cumtrapz(y, tdata)
 
-            ax1.plot(x, y, '-', color=(0, 0, 0), alpha=0.5)
+            ax1.plot(x, y, '-', color=(0, 0, 0), alpha=0.4)
             ax1.set_xlabel('x [m]')
             ax1.set_ylabel('y [m]')
             ax1.legend(['Path Map'])
+            ax1.grid(True)
 
+            accx = TLXA > 0
+            decx = TLXA < 0
+
+            accy = TLYA > 0
+            decy = TLYA < 0
+
+            accwarn1 = np.abs(TLXA) > 0.01
+            accwarn2 = np.abs(TLYA) > 0.01
+            accwarn3 = np.abs(TLTHA) > 0.01
+            accwarn = np.logical_or(accwarn1, accwarn2)
+            accwarn = np.logical_or(accwarn, accwarn3)
+            print accwarn
+
+            marker_style = dict(alpha=0.4, markersize=10)
+
+
+            for i in range(len(x)):
+                if accwarn[i]:
+                    ax1.plot(x[i], y[i], '.', color=(0.8, 0, 0), alpha=0.1, markersize=50)
+
+
+            for i in range(len(x))[::15]:
+                if accx[i]:
+                    ax1.plot(x[i], y[i], '>', color=(0, 0.8, 0), **marker_style)
+                if decx[i]:
+                    ax1.plot(x[i], y[i], '<', color=(0.8, 0, 0), **marker_style)
+
+                if accy[i]:
+                    ax1.plot(x[i], y[i], '^', color=(0, 0.8, 0), **marker_style)
+                if decy[i]:
+                    ax1.plot(x[i], y[i], 'v', color=(0.8, 0, 0), **marker_style)
+
+            for i in range(len(x))[::int(profile.rate/2)]:
+                text = '\n%s' % np.round(tdata[i], 1)
+                ax1.text(x[i], y[i], text, fontsize=8, alpha=0.15)
+
+
+            plt.tight_layout()
             plt.axis('equal')
 
 
         ##################################################
 
         if plot_map or plot_profile:
-            plt.axis('equal')
-
-            plt.tight_layout()
             plt.show()
