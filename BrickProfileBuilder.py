@@ -158,6 +158,7 @@ if __name__ == '__main__':
     # sync lines
     TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
 
+    '''
     TLY = np.append(TLY, bricks.lin(duration=1, velocity=0.2))
     TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
 
@@ -173,7 +174,7 @@ if __name__ == '__main__':
     TLX = np.append(TLX, bricks.lin(duration=1, velocity=0.2))
 
     TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-
+    '''
 
     tlx, tlth = bricks.circular_path(radius=0.25, phi=np.pi/2, duration=2)
     TLX = np.append(TLX, tlx)
