@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 #-*- coding: utf-8 -*-
 
 import rospy
@@ -62,13 +62,14 @@ class Bricks(object):
             velocity_low, velocity_hi = velocity_end, velocity_start
         return (sin_intv + 1) / 2 * (velocity_hi - velocity_low) + velocity_low
 
-    def circular_path(self, radius, phi, duration):
+    def circular_path(self, radius, phi, duration, acc_percentage=None, dec_percentage=None):
+        #TODO: implement acc_percentage, dec_percentage
         th_max = phi / (duration*0.9)
 
         anz_samples1 = self.calc_samples(duration*0.1)
         tdata1 = np.linspace(0, profile.sample_time * anz_samples1, anz_samples1)
 
-        th_t = th_max/2.0 * (-np.cos(10*np.pi/duration* tdata1) + 1)
+        th_t = th_max / 2.0 * (-np.cos(10 * np.pi/duration * tdata1) + 1)
         th_t_reverse = np.copy(th_t[::-1])
         th_t = np.append(th_t, self.lin(velocity=th_max, duration=duration*0.8))
         th_t = np.append(th_t, th_t_reverse)
@@ -154,31 +155,62 @@ if __name__ == '__main__':
     # KREISBAHN
     ############
 
-    TLX = np.append(TLX, bricks.lin(duration=1, velocity=0.2))
+    TLX = np.append(TLX, bricks.lin(duration=3, velocity=0))
     # sync lines
     TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
 
-    '''
-    TLY = np.append(TLY, bricks.lin(duration=1, velocity=0.2))
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-
-    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=-0.2, duration=1))
-    TLX = np.append(TLX, bricks.acc(velocity_start=-0.2, velocity_end=0, duration=1))
+    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=0.4, duration=1))
+    TLX = np.append(TLX, bricks.lin(duration=2, velocity=0.4))
+    TLX = np.append(TLX, bricks.acc(velocity_start=0.4, velocity_end=0, duration=1))
 
     TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
 
-    TLTH = np.append(TLTH, bricks.lin(duration=3.14, velocity=0.5))
-
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-
-    TLX = np.append(TLX, bricks.lin(duration=1, velocity=0.2))
-
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-    '''
-
-    tlx, tlth = bricks.circular_path(radius=0.25, phi=np.pi/2, duration=2)
+    tlx, tlth = bricks.circular_path(radius=0.5, phi=np.pi/4, duration=4)
     TLX = np.append(TLX, tlx)
     TLTH = np.append(TLTH, tlth)
+
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=0.4, duration=1))
+    TLX = np.append(TLX, bricks.lin(duration=1.5, velocity=0.4))
+    TLX = np.append(TLX, bricks.acc(velocity_start=0.4, velocity_end=0, duration=1))
+
+
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    tlx, tlth = bricks.circular_path(radius=-0.5, phi=-np.pi*9/6, duration=10)
+    TLX = np.append(TLX, tlx)
+    TLTH = np.append(TLTH, tlth)
+
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=0.4, duration=1))
+    TLX = np.append(TLX, bricks.lin(duration=1.5, velocity=0.4))
+    TLX = np.append(TLX, bricks.acc(velocity_start=0.4, velocity_end=0, duration=1))
+
+
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    tlx, tlth = bricks.circular_path(radius=0.5, phi=np.pi*15/12, duration=8)
+    TLX = np.append(TLX, tlx)
+    TLTH = np.append(TLTH, tlth)
+
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=-0.4, duration=0.5))
+    TLX = np.append(TLX, bricks.lin(duration=2.5, velocity=-0.4))
+    TLX = np.append(TLX, bricks.acc(velocity_start=-0.4, velocity_end=0, duration=0.5))
+
+
+
+    TLY = np.append(TLY, bricks.acc(velocity_start=0, velocity_end=-0.175, duration=0.5))
+    TLY = np.append(TLY, bricks.lin_dist(duration=2, distance=-0.35))
+    TLY = np.append(TLY, bricks.acc(velocity_start=-0.175, velocity_end=0, duration=0.5))
+
+
 
 
     # vor links
