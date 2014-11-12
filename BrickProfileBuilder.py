@@ -124,9 +124,15 @@ class ROSBridge(object):
 
 if __name__ == '__main__':
 
-    is_fakerun = True if '-fakerun' in sys.argv else False
-    is_plot = True if '-plot' in sys.argv else False
-    is_ros = True if '-ros' in sys.argv else False
+    is_fakerun = '-fakerun' in sys.argv
+    is_plot = '-plot' in sys.argv
+    if is_plot:
+        idx = sys.argv.index('-plot') + 1
+        plot_map = 'map' in sys.argv[idx:idx+2]
+        plot_profile = 'profile' in sys.argv[idx:idx+2]
+
+
+    is_ros = '-ros' in sys.argv
 
 
     TLX = np.array([], np.float)
@@ -148,10 +154,36 @@ if __name__ == '__main__':
     # KREISBAHN
     ############
 
-    # vor links
-    tlx, tlth = bricks.circular_path(radius=0.5, phi=np.pi/2, duration=6)
+    TLX = np.append(TLX, bricks.lin(duration=1, velocity=0.2))
+    # sync lines
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    TLY = np.append(TLY, bricks.lin(duration=1, velocity=0.2))
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=-0.2, duration=1))
+    TLX = np.append(TLX, bricks.acc(velocity_start=-0.2, velocity_end=0, duration=1))
+
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    TLTH = np.append(TLTH, bricks.lin(duration=3.14, velocity=0.5))
+
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+    TLX = np.append(TLX, bricks.lin(duration=1, velocity=0.2))
+
+    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+
+
+    tlx, tlth = bricks.circular_path(radius=0.25, phi=np.pi/2, duration=2)
     TLX = np.append(TLX, tlx)
     TLTH = np.append(TLTH, tlth)
+
+
+    # vor links
+    #tlx, tlth = bricks.circular_path(radius=0.5, phi=np.pi/2, duration=6)
+    #TLX = np.append(TLX, tlx)
+    #TLTH = np.append(TLTH, tlth)
 
     '''
     # rück links
@@ -190,125 +222,79 @@ if __name__ == '__main__':
         import matplotlib.pyplot as plt
         import scipy
 
-        fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1)
-        legend = ['x', 'y', '$\\theta$']
-
         TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
         max_samples = max([len(TLX), len(TLY), len(TLTH)])
-        xdata = np.linspace(0, profile.sample_time * max_samples, max_samples)
+        tdata = np.linspace(0, profile.sample_time * max_samples, max_samples)
 
         TLXD = np.array([0], np.float)
         TLYD = np.array([0], np.float)
         TLTHD = np.array([0], np.float)
 
-        TLXD = np.append(TLXD, integrate.cumtrapz(TLX, xdata))
-        TLYD = np.append(TLYD, integrate.cumtrapz(TLY, xdata))
-        TLTHD = np.append(TLTHD, integrate.cumtrapz(TLTH, xdata))
+        TLXD = np.append(TLXD, integrate.cumtrapz(TLX, tdata))
+        TLYD = np.append(TLYD, integrate.cumtrapz(TLY, tdata))
+        TLTHD = np.append(TLTHD, integrate.cumtrapz(TLTH, tdata))
 
-        ax1.plot(xdata, TLXD)
-        ax1.plot(xdata, TLYD)
-        ax1.plot(xdata, TLTHD)
-        ax1.legend(legend)
-        ax1.set_title('Distance')
+        if plot_profile:
+            fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1)
+            legend = ['x', 'y', '$\\theta$']
 
-        ##################################################
+            ax1.plot(tdata, TLXD)
+            ax1.plot(tdata, TLYD)
+            ax1.plot(tdata, TLTHD)
+            ax1.legend(legend)
+            ax1.set_title('Distance')
 
-
-        ax2.plot(xdata, TLX)
-        ax2.plot(xdata, TLY)
-        ax2.plot(xdata, TLTH)
-        ax2.legend(legend)
-        ax2.set_title('Velocity')
-
-        ##################################################
+            ##################################################
 
 
-        TLXA = np.array([0], np.float)
-        TLYA = np.array([0], np.float)
-        TLTHA = np.array([0], np.float)
+            ax2.plot(tdata, TLX)
+            ax2.plot(tdata, TLY)
+            ax2.plot(tdata, TLTH)
+            ax2.legend(legend)
+            ax2.set_title('Velocity')
 
-        TLXA = np.append(TLXA, scipy.diff(TLX))
-        TLYA = np.append(TLYA, scipy.diff(TLY))
-        TLTHA = np.append(TLTHA, scipy.diff(TLTH))
+            ##################################################
 
-        ax3.plot(xdata, TLXA)
-        ax3.plot(xdata, TLYA)
-        ax3.plot(xdata, TLTHA)
-        ax3.legend(legend)
-        ax3.set_title('Acceleration')
+
+            TLXA = np.array([0], np.float)
+            TLYA = np.array([0], np.float)
+            TLTHA = np.array([0], np.float)
+
+            TLXA = np.append(TLXA, scipy.diff(TLX))
+            TLYA = np.append(TLYA, scipy.diff(TLY))
+            TLTHA = np.append(TLTHA, scipy.diff(TLTH))
+
+            ax3.plot(tdata, TLXA)
+            ax3.plot(tdata, TLYA)
+            ax3.plot(tdata, TLTHA)
+            ax3.legend(legend)
+            ax3.set_title('Acceleration')
 
         ##################################################
         # MAP
         ##################################################
 
-        '''
-        fig, (ax1) = plt.subplots(nrows=1, ncols=1)
-        TLTHDS = np.sin(TLTHD)
-        TLTHDC = np.cos(TLTHD)
-        TLPX = TLXD * TLTHDS
-        TLPY = TLXD * TLTHDC
-        ax1.plot(TLPX, TLPY)
-        ax1.set_xlabel('x [m]')
-        ax1.set_ylabel('y [m]')
-        ax1.legend(['Path'])
+        if plot_map:
+            fig, (ax1) = plt.subplots(nrows=1, ncols=1)
 
-        plt.axis('equal')
-        '''
+            x = TLX * np.cos(TLTHD) + TLY * np.sin(TLTHD)
+            y = TLY * np.cos(TLTHD) + TLX * np.sin(TLTHD)
 
-        ##################################################
-        # TESTING AREA
-        ##################################################
+            x = integrate.cumtrapz(x, tdata)
+            y = integrate.cumtrapz(y, tdata)
 
+            ax1.plot(x, y, '-', color=(0, 0, 0), alpha=0.5)
+            ax1.set_xlabel('x [m]')
+            ax1.set_ylabel('y [m]')
+            ax1.legend(['Path Map'])
 
-        fig, (ax2, ax1) = plt.subplots(nrows=1, ncols=2)
+            plt.axis('equal')
 
-        phi = np.pi
-        R = 1.5
-        T = 6
-
-        # NEW TEST
-
-        anz_samples = bricks.calc_samples(T)
-        tdata =  np.linspace(0, profile.sample_time * anz_samples, anz_samples)
-
-        v_t, th_t = bricks.circular_path(radius=R, phi=np.pi / 2, duration=T)
-
-        absphi = np.array([0], np.float)
-        absphi = np.append(absphi, integrate.cumtrapz(th_t, tdata))
-
-        ax2.plot(tdata, th_t)
-        ax2.plot(tdata, v_t)
-        ax2.set_title('Velocity')
-        ax2.legend(['$\\theta(t)$ [$rad \\cdot s^{-1}$]', '$v(t)$ [$m \\cdot s^{-1}$]'])
-
-        ax2.set_xlabel('t [s]')
-        ax2.set_ylabel('v')
-
-        # Plot
-
-        xdata = R * np.cos(absphi) - R
-        ydata = R * np.sin(absphi)
-
-
-        ax1.plot(xdata, ydata, '-', color=(0, 0, 0), alpha=0.5)
-
-        start, end = 0.0, 0.1
-        ax1.plot(xdata[np.floor(anz_samples*start):np.floor(anz_samples*end)], ydata[np.floor(anz_samples*start):np.floor(anz_samples*end)], 'gx-')
-
-        start, end = 0.1, 0.9
-        ax1.plot(xdata[np.floor(anz_samples*start):np.floor(anz_samples*end)], ydata[np.floor(anz_samples*start):np.floor(anz_samples*end)], 'yx-')
-
-        start, end = 0.9, 1.0
-        ax1.plot(xdata[np.floor(anz_samples*start):np.floor(anz_samples*end)], ydata[np.floor(anz_samples*start):np.floor(anz_samples*end)], 'rx-')
-
-
-        ax1.legend(['Aceleration', 'Linear', 'Deceleration'])
-        ax1.set_xlabel('x [m]')
-        ax1.set_ylabel('y [m]')
 
         ##################################################
 
-        plt.axis('equal')
+        if plot_map or plot_profile:
+            plt.axis('equal')
 
-        plt.tight_layout()
-        plt.show()
+            plt.tight_layout()
+            plt.show()
