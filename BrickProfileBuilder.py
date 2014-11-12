@@ -62,47 +62,19 @@ class Bricks(object):
             velocity_low, velocity_hi = velocity_end, velocity_start
         return (sin_intv + 1) / 2 * (velocity_hi - velocity_low) + velocity_low
 
-    def circular_path_parameter(self, duration, radius, phi):
+    def circular_path(self, radius, phi, duration):
+        th_max = phi / (duration*0.9)
 
-        theta = phi / (np.pi + duration / 1.2)
+        anz_samples1 = self.calc_samples(duration*0.1)
+        tdata1 = np.linspace(0, profile.sample_time * anz_samples1, anz_samples1)
 
-        #dphi = phi / self.calc_samples(np.pi + duration / 1.2)
-        #theta = dphi / self.profile.sample_time
-        velocity = radius * theta
-        return velocity, theta
+        th_t = th_max/2.0 * (-np.cos(10*np.pi/duration* tdata1) + 1)
+        th_t_reverse = np.copy(th_t[::-1])
+        th_t = np.append(th_t, self.lin(velocity=th_max, duration=duration*0.8))
+        th_t = np.append(th_t, th_t_reverse)
 
-    def circular_path(self, duration, radius, phi):
-        # FIXME: hardcoded...
-        velocity_start = 0
-        velocity_end = 0
-
-
-        TLX = np.array([], np.float)
-        TLTH = np.array([], np.float)
-
-        vx, vtheta = self.circular_path_parameter(duration=duration, radius=radius, phi=phi)
-
-        # TODO add description...
-        if phi < 0:
-            vx*=-1
-
-        if radius < 0:
-            vtheta *= -1
-
-        # accelerate
-        TLX = np.append(TLX, self.acc(velocity_start=velocity_start, velocity_end=vx, duration=duration*0.1))
-        TLTH = np.append(TLTH, self.acc(velocity_start=velocity_start, velocity_end=vtheta, duration=duration*0.1))
-
-        # circular movement
-        TLX = np.append(TLX, self.lin(velocity=vx, duration=duration*0.8))
-        TLTH = np.append(TLTH, self.lin(velocity=vtheta, duration=duration*0.8))
-
-        # decelerate
-        TLX = np.append(TLX, self.acc(velocity_start=vx, velocity_end=velocity_end, duration=duration*0.1))
-        TLTH = np.append(TLTH, self.acc(velocity_start=vtheta, velocity_end=velocity_end, duration=duration*0.1))
-
-        return TLX, TLTH
-
+        v_t = th_t * radius
+        return v_t, th_t
 
 
 class GeneralMovement(object):
@@ -180,6 +152,7 @@ if __name__ == '__main__':
     tlx, tlth = bricks.circular_path(radius=0.5, phi=np.pi/2, duration=6)
     TLX = np.append(TLX, tlx)
     TLTH = np.append(TLTH, tlth)
+
     '''
     # rück links
     tlx, tlth = bricks.circular_path(radius=-0.5, phi=np.pi/2, duration=6)
@@ -218,7 +191,7 @@ if __name__ == '__main__':
         import scipy
 
         fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1)
-
+        legend = ['x', 'y', '$\\theta$']
 
         TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
         max_samples = max([len(TLX), len(TLY), len(TLTH)])
@@ -235,7 +208,7 @@ if __name__ == '__main__':
         ax1.plot(xdata, TLXD)
         ax1.plot(xdata, TLYD)
         ax1.plot(xdata, TLTHD)
-        ax1.legend(['X', 'Y', 'Theta'])
+        ax1.legend(legend)
         ax1.set_title('Distance')
 
         ##################################################
@@ -244,7 +217,7 @@ if __name__ == '__main__':
         ax2.plot(xdata, TLX)
         ax2.plot(xdata, TLY)
         ax2.plot(xdata, TLTH)
-        ax2.legend(['X', 'Y', 'Theta'])
+        ax2.legend(legend)
         ax2.set_title('Velocity')
 
         ##################################################
@@ -261,10 +234,14 @@ if __name__ == '__main__':
         ax3.plot(xdata, TLXA)
         ax3.plot(xdata, TLYA)
         ax3.plot(xdata, TLTHA)
-        ax3.legend(['X', 'Y', 'Theta'])
+        ax3.legend(legend)
         ax3.set_title('Acceleration')
 
+        ##################################################
+        # MAP
+        ##################################################
 
+        '''
         fig, (ax1) = plt.subplots(nrows=1, ncols=1)
         TLTHDS = np.sin(TLTHD)
         TLTHDC = np.cos(TLTHD)
@@ -276,68 +253,60 @@ if __name__ == '__main__':
         ax1.legend(['Path'])
 
         plt.axis('equal')
-
+        '''
 
         ##################################################
         # TESTING AREA
         ##################################################
 
 
-        fig, (ax1) = plt.subplots(nrows=1, ncols=1)
+        fig, (ax2, ax1) = plt.subplots(nrows=1, ncols=2)
 
-        phi = np.pi/2
-        R = 0.5
+        phi = np.pi
+        R = 1.5
         T = 6
 
-        T1 = T*0.1
-        T2 = T*0.8
-        T3 = T*0.1
-
-
-        #s = 2 * np.pi * R / phi
-        s = R * phi
-
-        v_max = s / (2 * np.pi + 0.2*T) + s / T*0.8
-        print v_max
-
-        magic = 12#2.22#np.pi * 2 / 3
-
-        #v_max = R * phi * magic / T
-        print np.pi * 2 / 3
-        print v_max
-
-        #s = R * phi
-        #v_max = s / T
-
-        vdata = np.array([], np.float)
-        vdata = np.append(vdata, bricks.acc(velocity_start=0, velocity_end=v_max, duration=T1))
-        vdata = np.append(vdata, bricks.lin(velocity=v_max, duration=T2))
-        vdata = np.append(vdata, bricks.acc(velocity_start=v_max, velocity_end=0, duration=T3))
+        # NEW TEST
 
         anz_samples = bricks.calc_samples(T)
-        tdata = np.linspace(0, profile.sample_time * anz_samples, anz_samples)
+        tdata =  np.linspace(0, profile.sample_time * anz_samples, anz_samples)
 
-        sdata = np.array([0], np.float)
-        sdata = np.append(sdata, integrate.cumtrapz(vdata, tdata))
+        v_t, th_t = bricks.circular_path(radius=R, phi=np.pi / 2, duration=T)
 
+        absphi = np.array([0], np.float)
+        absphi = np.append(absphi, integrate.cumtrapz(th_t, tdata))
 
-        xdata = R * np.cos(sdata)
-        ydata = R * np.sin(sdata)
-        ax1.plot(xdata, ydata, '-', color=(0, 0, 0))
+        ax2.plot(tdata, th_t)
+        ax2.plot(tdata, v_t)
+        ax2.set_title('Velocity')
+        ax2.legend(['$\\theta(t)$ [$rad \\cdot s^{-1}$]', '$v(t)$ [$m \\cdot s^{-1}$]'])
 
-        xdata = R * np.cos(sdata[anz_samples*0.0:anz_samples*0.1])
-        ydata = R * np.sin(sdata[anz_samples*0.0:anz_samples*0.1])
-        ax1.plot(xdata, ydata, 'rx-')
+        ax2.set_xlabel('t [s]')
+        ax2.set_ylabel('v')
 
-        xdata = R * np.cos(sdata[anz_samples*0.1:anz_samples*0.9])
-        ydata = R * np.sin(sdata[anz_samples*0.1:anz_samples*0.9])
-        ax1.plot(xdata, ydata, 'yx-')
+        # Plot
 
-        xdata = R * np.cos(sdata[anz_samples*0.9:anz_samples*1])
-        ydata = R * np.sin(sdata[anz_samples*0.9:anz_samples*1])
-        ax1.plot(xdata, ydata, 'gx-')
+        xdata = R * np.cos(absphi) - R
+        ydata = R * np.sin(absphi)
 
 
+        ax1.plot(xdata, ydata, '-', color=(0, 0, 0), alpha=0.5)
+
+        start, end = 0.0, 0.1
+        ax1.plot(xdata[np.floor(anz_samples*start):np.floor(anz_samples*end)], ydata[np.floor(anz_samples*start):np.floor(anz_samples*end)], 'gx-')
+
+        start, end = 0.1, 0.9
+        ax1.plot(xdata[np.floor(anz_samples*start):np.floor(anz_samples*end)], ydata[np.floor(anz_samples*start):np.floor(anz_samples*end)], 'yx-')
+
+        start, end = 0.9, 1.0
+        ax1.plot(xdata[np.floor(anz_samples*start):np.floor(anz_samples*end)], ydata[np.floor(anz_samples*start):np.floor(anz_samples*end)], 'rx-')
+
+
+        ax1.legend(['Aceleration', 'Linear', 'Deceleration'])
+        ax1.set_xlabel('x [m]')
+        ax1.set_ylabel('y [m]')
+
+        ##################################################
 
         plt.axis('equal')
 
