@@ -45,7 +45,7 @@ class Bricks(object):
     def cos(self, start, stop, duration):
         return np.cos(np.linspace(start, stop, self.calc_samples(duration)))
 
-    def lin(self, duration, velocity=1):
+    def lin(self, duration, velocity=1.0):
         return np.linspace(velocity, velocity, self.calc_samples(duration))
 
     def lin_dist(self, distance, duration):
