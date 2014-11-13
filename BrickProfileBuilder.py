@@ -27,15 +27,6 @@ class Bricks(object):
     def calc_samples(self, duration):
         return duration / self.profile.sample_time
 
-    def evenMaxSamples(self, *args):
-        args = list(args)
-        max_samples = max(map(len, args))
-        for idx, sample_line in enumerate(args):
-            remaining_samples = max_samples - len(sample_line)
-            fill_data = np.zeros((remaining_samples), np.float)
-            args[idx] = np.append(sample_line, fill_data)
-        return args
-
 
     def sin(self, start, stop, duration):
         return np.sin(np.linspace(start, stop, self.calc_samples(duration)))
@@ -47,13 +38,19 @@ class Bricks(object):
     def cos(self, start, stop, duration):
         return np.cos(np.linspace(start, stop, self.calc_samples(duration)))
 
-    def lin(self, duration, velocity=1.0):
+    def lin_acc(self, velocity_start, velocity_lin, velocity_end, duration, acc_percentage=0.2, dec_percentage=0.2):
+        TL = self.acc(velocity_start=velocity_start, velocity_end=velocity_lin, duration=duration*acc_percentage)
+        TL = np.append(TL, self.lin(velocity=velocity_lin, duration=duration * (1.0-(acc_percentage + dec_percentage))))
+        TL = np.append(TL, self.acc(velocity_start=velocity_lin, velocity_end=velocity_end, duration=duration * dec_percentage))
+        return TL
+
+    def lin(self, velocity, duration):
         return np.linspace(velocity, velocity, self.calc_samples(duration))
 
     def lin_dist(self, distance, duration):
-        speed = float(distance) / float(duration)
-        print speed
-        return self.lin(duration) * speed
+        velocity = float(distance) / float(duration)
+        print velocity
+        return self.lin(velocity, duration)
 
     def acc(self, velocity_start, velocity_end, duration):
         if velocity_start < velocity_end:
@@ -64,20 +61,63 @@ class Bricks(object):
             velocity_low, velocity_hi = velocity_end, velocity_start
         return (sin_intv + 1) / 2 * (velocity_hi - velocity_low) + velocity_low
 
-    def circular_path(self, radius, phi, duration, acc_percentage=None, dec_percentage=None):
-        #TODO: implement acc_percentage, dec_percentage
-        th_max = phi / (duration*0.9)
+    def circular_path(self, radius, phi, duration, acc_percentage=0.2, dec_percentage=0.2):
 
-        anz_samples1 = self.calc_samples(duration*0.1)
-        tdata1 = np.linspace(0, profile.sample_time * anz_samples1, anz_samples1)
+        anz_samples_acc = self.calc_samples(duration * acc_percentage)
+        tdata_acc = np.linspace(0, profile.sample_time * anz_samples_acc, anz_samples_acc)
 
-        th_t = th_max / 2.0 * (-np.cos(10 * np.pi/duration * tdata1) + 1)
-        th_t_reverse = np.copy(th_t[::-1])
-        th_t = np.append(th_t, self.lin(velocity=th_max, duration=duration*0.8))
-        th_t = np.append(th_t, th_t_reverse)
+        anz_samples_dec = self.calc_samples(duration * dec_percentage)
+        tdata_dec = np.linspace(0, profile.sample_time * anz_samples_dec, anz_samples_dec)
+
+
+        th_max = -2.0*phi / (duration * (acc_percentage + dec_percentage - 2.0))
+        th_t_acc = th_max * (-np.cos(np.pi * tdata_acc / (duration * acc_percentage)) + 1.0) / 2.0
+        th_t_lin = self.lin(velocity=th_max, duration=duration * (1.0-(acc_percentage + dec_percentage)))
+        th_t_dec = th_max * (-np.cos(np.pi * tdata_dec / (duration * dec_percentage)) + 1.0) / 2.0
+
+        th_t = np.append(th_t_acc, th_t_lin)
+        th_t = np.append(th_t, th_t_dec[::-1])
 
         v_t = th_t * radius
+
         return v_t, th_t
+
+class Timeline(object):
+    def __init__(self):
+        self.TLX = np.array([], np.float)
+        self.TLY = np.array([], np.float)
+        self.TLTH = np.array([], np.float)
+        self.SECTIONS = list()
+
+    def appendX(self, data):
+        self.TLX = np.append(self.TLX, data)
+
+    def appendY(self, data):
+        self.TLY = np.append(self.TLY, data)
+
+    def appendTH(self, data):
+        self.TLTH = np.append(self.TLTH, data)
+
+    def syncTimeline(self):
+        self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(self.TLX, self.TLY, self.TLTH)
+
+    def _evenMaxSamples(self, *args):
+        args = list(args)
+        max_samples = max(map(len, args))
+        for idx, sample_line in enumerate(args):
+            remaining_samples = max_samples - len(sample_line)
+            fill_data = np.zeros((remaining_samples), np.float)
+            args[idx] = np.append(sample_line, fill_data)
+        return args
+
+    def __len__(self):
+        return max(map(len, [self.TLX, self.TLY, self.TLTH]))
+
+    def new_section(self, name='', sync_timelines=True):
+        if sync_timelines:
+            self.syncTimeline()
+        self.SECTIONS.append({'name': name, 'at_sample': len(self)})
+
 
 
 class GeneralMovement(object):
@@ -112,14 +152,14 @@ class ROSBridge(object):
 
     def exec_timeline(self, timeline):
 
-        for step in range(max([len(timeline['x']), len(timeline['y']), len(timeline['th'])])):
+        for step in range(max([len(timeline.TLX), len(timeline.TLY), len(timeline.TLTH)])):
             twist = Twist()
-            if step < len(timeline['x']):
-                twist.linear.x = timeline['x'][step]
-            if step < len(timeline['y']):
-                twist.linear.y = timeline['y'][step]
-            if step < len(timeline['th']):
-                twist.angular.z = timeline['th'][step]
+            if step < len(timeline.TLX):
+                twist.linear.x = timeline.TLX[step]
+            if step < len(timeline.TLY):
+                twist.linear.y = timeline.TLY[step]
+            if step < len(timeline.TLTH):
+                twist.angular.z = timeline.TLTH[step]
 
             self.pub.publish(twist)
             time.sleep(self.profile.sample_time)
@@ -133,85 +173,29 @@ if __name__ == '__main__':
         idx = sys.argv.index('-plot') + 1
         plot_map = 'map' in sys.argv[idx:idx+2]
         plot_profile = 'profile' in sys.argv[idx:idx+2]
-
-
     is_ros = '-ros' in sys.argv
 
-
-    TLX = np.array([], np.float)
-    TLY = np.array([], np.float)
-    TLTH = np.array([], np.float)
 
     profile = Profile(rate=100, max_linear_velocity=0.4, max_angular_velocity=0.6,
                       max_linear_acceleration=0.01, max_angular_acceleration=0.01)
     bricks = Bricks(profile)
 
-    boring = BoringMovement(profile)
-
-    # wait 0.5 sec
-    TLX = np.append(TLX, bricks.lin(duration=0.5, velocity=0))
-
-    # sync lines
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+    timeline = Timeline()
+    timeline.appendX(bricks.lin(duration=3, velocity=0))
 
 
     # KREISBAHN
     ############
 
-    TLX = np.append(TLX, bricks.lin(duration=3, velocity=0))
-    # sync lines
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+    timeline.new_section('test lin')
+    timeline.appendX(bricks.lin_acc(velocity_start=0, velocity_lin=0.4, velocity_end=0, acc_percentage=0.25, dec_percentage=0.25, duration=3))
+    timeline.syncTimeline()
 
-    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=0.4, duration=1))
-    TLX = np.append(TLX, bricks.lin(duration=2, velocity=0.4))
-    TLX = np.append(TLX, bricks.acc(velocity_start=0.4, velocity_end=0, duration=1))
+    timeline.new_section('test circular_path')
+    tlx, tlth = bricks.circular_path(radius=0.5, phi=np.pi/2, duration=4)
+    timeline.appendX(tlx)
+    timeline.appendTH(tlth)
 
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-
-    tlx, tlth = bricks.circular_path(radius=0.5, phi=np.pi/4, duration=4)
-    TLX = np.append(TLX, tlx)
-    TLTH = np.append(TLTH, tlth)
-
-    # sync lines
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-
-    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=0.4, duration=1))
-    TLX = np.append(TLX, bricks.lin(duration=1.5, velocity=0.4))
-    TLX = np.append(TLX, bricks.acc(velocity_start=0.4, velocity_end=0, duration=1))
-
-
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-
-    tlx, tlth = bricks.circular_path(radius=-0.5, phi=-np.pi*9/6, duration=10)
-    TLX = np.append(TLX, tlx)
-    TLTH = np.append(TLTH, tlth)
-
-    # sync lines
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-
-    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=0.4, duration=1))
-    TLX = np.append(TLX, bricks.lin(duration=1.5, velocity=0.4))
-    TLX = np.append(TLX, bricks.acc(velocity_start=0.4, velocity_end=0, duration=1))
-
-
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-
-    tlx, tlth = bricks.circular_path(radius=0.5, phi=np.pi*15/12, duration=8)
-    TLX = np.append(TLX, tlx)
-    TLTH = np.append(TLTH, tlth)
-
-    # sync lines
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
-
-    TLX = np.append(TLX, bricks.acc(velocity_start=0, velocity_end=-0.4, duration=0.5))
-    TLX = np.append(TLX, bricks.lin(duration=2.5, velocity=-0.4))
-    TLX = np.append(TLX, bricks.acc(velocity_start=-0.4, velocity_end=0, duration=0.5))
-
-
-
-    TLY = np.append(TLY, bricks.acc(velocity_start=0, velocity_end=-0.175, duration=0.5))
-    TLY = np.append(TLY, bricks.lin_dist(duration=2, distance=-0.35))
-    TLY = np.append(TLY, bricks.acc(velocity_start=-0.175, velocity_end=0, duration=0.5))
 
 
 
@@ -239,27 +223,22 @@ if __name__ == '__main__':
     TLTH = np.append(TLTH, tlth)
     '''
 
-
-    # sync lines
-    TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
+    timeline.syncTimeline()
 
 
-
-    TIMELINE = dict()
-    TIMELINE['x'] = TLX
-    TIMELINE['y'] = TLY
-    TIMELINE['th'] = TLTH
+    TLX = timeline.TLX
+    TLY = timeline.TLY
+    TLTH = timeline.TLTH
 
     if is_ros:
         bridge = ROSBridge(profile, fakerun=is_fakerun)
-        bridge.exec_timeline(TIMELINE)
+        bridge.exec_timeline(timeline)
 
     if is_plot:
         import matplotlib.pyplot as plt
         import matplotlib.collections as collections
         import scipy
 
-        TLX, TLY, TLTH = bricks.evenMaxSamples(TLX, TLY, TLTH)
         max_samples = max([len(TLX), len(TLY), len(TLTH)])
         tdata = np.linspace(0, profile.sample_time * max_samples, max_samples)
 
@@ -343,7 +322,25 @@ if __name__ == '__main__':
             x = integrate.cumtrapz(x, tdata)
             y = integrate.cumtrapz(y, tdata)
 
-            ax1.plot(x, y, '-', color=(0, 0, 0), alpha=0.4)
+
+            last_endpoint = 0
+            color_scale = 0.5
+            for idx, sec in enumerate(timeline.SECTIONS):
+                name = sec['name']
+                sp = sec['at_sample']
+
+                ax1.text(x[sp], y[sp], '\n      %s'%name, fontsize=12, alpha=0.25)
+
+                color = (color_scale, color_scale, 0) if idx%2 else (color_scale, 0, color_scale)
+                ax1.plot(x[last_endpoint:sp], y[last_endpoint:sp], '-', color=color, alpha=0.4)
+
+                last_endpoint = sp
+            else:
+                idx += 1
+                color = (color_scale, color_scale, 0) if idx%2 else (color_scale, 0, color_scale)
+                ax1.plot(x[last_endpoint:], y[last_endpoint:], '-', color=color, alpha=0.4)
+
+
             ax1.set_xlabel('x [m]')
             ax1.set_ylabel('y [m]')
             ax1.legend(['Path Map'])
@@ -355,12 +352,11 @@ if __name__ == '__main__':
             accy = TLYA > 0
             decy = TLYA < 0
 
-            accwarn1 = np.abs(TLXA) > 0.01
-            accwarn2 = np.abs(TLYA) > 0.01
-            accwarn3 = np.abs(TLTHA) > 0.01
+            accwarn1 = np.abs(TLXA) > profile.max_linear_acceleration
+            accwarn2 = np.abs(TLYA) > profile.max_linear_acceleration
+            accwarn3 = np.abs(TLTHA) > profile.max_angular_acceleration
             accwarn = np.logical_or(accwarn1, accwarn2)
             accwarn = np.logical_or(accwarn, accwarn3)
-            print accwarn
 
             marker_style = dict(alpha=0.4, markersize=10)
 
@@ -368,7 +364,6 @@ if __name__ == '__main__':
             for i in range(len(x)):
                 if accwarn[i]:
                     ax1.plot(x[i], y[i], '.', color=(0.8, 0, 0), alpha=0.1, markersize=50)
-
 
             for i in range(len(x))[::15]:
                 if accx[i]:
@@ -384,6 +379,7 @@ if __name__ == '__main__':
             for i in range(len(x))[::int(profile.rate/2)]:
                 text = '\n%s' % np.round(tdata[i], 1)
                 ax1.text(x[i], y[i], text, fontsize=8, alpha=0.15)
+                ax1.plot(x[i], y[i], '.', color=(0, 0, 0), alpha=0.15)
 
 
             plt.tight_layout()
