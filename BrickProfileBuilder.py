@@ -14,7 +14,7 @@ class Plotter(object):
 
         import matplotlib.pyplot as plt
         import scipy
-
+        timeline.syncTimeline()
         self.timeline = timeline
 
         max_samples = len(timeline)
@@ -205,6 +205,7 @@ class ROSBridge(object):
         print '-'*50
 
     def exec_timeline(self, timeline):
+        timeline.syncTimeline()
         for step in range(max([len(timeline.TLX), len(timeline.TLY), len(timeline.TLTH)])):
             twist = Twist()
             if step < len(timeline.TLX):
@@ -332,6 +333,25 @@ class Bricks(object):
 
         return v_t, th_t
 
+    def const_direction_rotation(self, velocity_start_x, velocity_start_y, phi, duration):
+        _, tlth = self.circular_path(radius=0, phi=phi, duration=duration, acc_percentage=0.2, dec_percentage=0.2)
+
+
+
+        cos_scale = self.cos(start=0, stop=phi, duration=duration)
+        sin_scale = self.sin(start=0, stop=phi, duration=duration)
+
+
+
+        tlx = cos_scale * velocity_start_x - sin_scale * velocity_start_y
+        tly = sin_scale * velocity_start_x + cos_scale * velocity_start_y
+
+        if phi > 0:
+            tly *= -1
+        if phi < 0:
+            tlx *= -1
+
+        return tlx, tly, tlth
 
 class BoringMovement(Timeline, Bricks):
     def __init__(self, profile):
@@ -409,17 +429,17 @@ class BoringMovement(Timeline, Bricks):
         self.syncTimeline()
 
         self.new_section('annaehern')
-        self.appendX(self.acc(velocity_start=0, velocity_end=0.31, duration=0.5))
-        self.appendX(self.lin(0.31, 2))
+        self.appendX(self.acc(velocity_start=0, velocity_end=0.21, duration=0.5))
+        self.appendX(self.lin(0.21, 2))
 
 
         self.new_section('ausrichtung fenster')
-        tlx, tlth = self.circular_path(radius=-1.25, phi=-np.pi/2, duration=10, acc_percentage=0, dec_percentage=0.5)
+        tlx, tlth = self.circular_path(radius=-1, phi=-np.pi/2, duration=10, acc_percentage=0, dec_percentage=0.5)
         self.appendX(tlx)
         self.appendTH(tlth)
 
         self.new_section('look')
-        self.appendX(self.lin(duration=0.5, velocity=0))
+        self.appendX(self.lin(duration=0.25, velocity=0))
         self.syncTimeline()
 
         tlx, tlth = self.circular_path(radius=0, phi=-np.pi/4, duration=3.5, acc_percentage=0.6, dec_percentage=0.4)
@@ -438,97 +458,48 @@ class BoringMovement(Timeline, Bricks):
         self.appendX(self.lin(duration=1, velocity=0))
         self.syncTimeline()
 
-        tlx, tlth = self.circular_path(radius=0, phi=-np.pi/4, duration=4, acc_percentage=0.6, dec_percentage=0.4)
-        self.appendX(tlx)
-        self.appendTH(tlth)
-        self.syncTimeline()
-
-        self.appendX(self.lin(duration=0.5, velocity=0))
-        self.syncTimeline()
 
     def away_from_window(self):
-        self.new_section('\nenfernen vom fenster')
-        self.appendX(self.lin_acc(velocity_start=0, velocity_end=0.3, velocity_lin=-0.3, dec_percentage=0.5, duration=2))
-
-        #self.appendTH(self.lin(velocity=0.8, duration=0.25))
-        self.appendTH(self.lin_acc(velocity_start=0, velocity_end=0, velocity_lin=0.8, acc_percentage=0.2, dec_percentage=0.2, duration=2))
-
-        #self.appendTH(self.circular_path(radius=0, ))
-
-        #self.appendY(self.lin(velocity=0, duration=0.5))
-        self.appendY(self.lin_acc(velocity_start=0, velocity_end=0, velocity_lin=0.3, acc_percentage=0.5, duration=1.5))
-
-
-        self.syncTimeline()
-
-
-        self.appendX(self.acc(velocity_start=0.3, velocity_end=0, duration=1))
-
-        self.syncTimeline()
-
-    def away_from_window2(self):
-        self.new_section('\nenfernen vom fenster')
-
-        scale = 3
-        T = 1.5*scale
-
-        self.appendX(self.lin(velocity=0, duration=T/4))
-        self.appendX(self.sin_t(A=0.3, f=2.0/3/3/scale, phi=0, T=T*3/4))
-        self.appendX(self.lin(0.3, T*1/4))
-        self.appendY(self.sin_t(A=0.2/scale, f=2.0/3/scale, phi=0, T=T/2))
-        self.appendTH(self.sin_t(A=0.7, f=1.0/3/scale, phi=0, T=T))
-
-        self.syncTimeline()
-
-    def away_from_window3(self):
 
         self.new_section('\nenfernen vom fenster')
-
-        #self.appendX(self.acc(0, -1, 0.5))
-        #self.appendY(self.acc(0, 1, 0.5))
-
-        #self.appendY(self.sin(-np.pi, 0, 2))
-
-        #self.appendX(self.sin(-np.pi, np.pi/4, 6)*0.2)
-        #self.appendY(self.sin(0, np.pi, 6)*0.2)
-
-
-        lin90_3, th90_3 = self.circular_path(radius=0.2, phi=np.pi/2, duration=3, acc_percentage=0.25, dec_percentage=0.25)
-        lin90_6, th90_6 = self.circular_path(radius=0.5, phi=np.pi*5/8, duration=6, acc_percentage=0.35, dec_percentage=0.25)
-
-
-
 
         self.appendY(self.lin(velocity=0, duration=0.5))
         self.appendY(self.lin_acc(velocity_start=0, velocity_lin=0.15, velocity_end=0, acc_percentage=0.3, dec_percentage=0.3, duration=3.5))
-        #self.appendY(lin90_3*2/3)
 
         self.appendTH(self.lin_acc(velocity_start=0, velocity_lin=0.55, velocity_end=0, acc_percentage=0.35, dec_percentage=0.25, duration=5))
-        #self.appendTH(th90_6*1.1)
 
-
-
-        #self.appendX(self.lin(velocity=0, duration=1.5))
         self.appendX(self.lin_acc(velocity_start=0, velocity_lin=-0.08, velocity_end=0, acc_percentage=0.7, dec_percentage=0.3, duration=1.5))
         self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=5.5))
-        #self.appendX(lin90_6*2/3)
-
-
-
-        #self.appendX(self.lin(velocity=0, duration=3))
-        #self.appendX(lin45*-1)
-
-
-        #lin, th = self.circular_path(radius=-1, phi=np.pi/4, duration=3, acc_percentage=0, dec_percentage=0.5)
-        #self.appendY(lin)
-        #self.appendX(lin*-1)
-        #self.appendTH(th)
-
-        #self.new_section('\n90 grad')
-
-
 
         self.syncTimeline()
+
+    def test_rotmove_side_drive(self):
+        speed = 0.5
+        phi = np.pi / 2
+
+        self.new_section('speed up')
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=speed, velocity_end=speed, acc_percentage=0.4, dec_percentage=0, duration=1.5))
+
+
+        self.new_section('rotate 1')
+        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=speed, velocity_start_y=0, phi=phi, duration=3.5)
+        self.appendX(tlx)
+        self.appendY(tly)
+        self.appendTH(tlth)
+
+        self.appendY(self.lin(-speed, 1))
+
+        self.new_section('rot back')
+        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=0, velocity_start_y=-speed, phi=-phi, duration=3.5)
+        self.appendX(tlx)
+        self.appendY(tly)
+        self.appendTH(tlth)
+
+
+
+        self.new_section('speed down')
+        self.appendX(self.lin_acc(velocity_start=speed, velocity_lin=speed, velocity_end=0, acc_percentage=0, dec_percentage=0.4, duration=1.5))
+
 
 if __name__ == '__main__':
 
@@ -548,13 +519,17 @@ if __name__ == '__main__':
     #boring.test_speed_linear()
     #boring.test_speed_angular()
     #boring.test_speed_circula_path()
+
     #boring.to_window()
     #boring.away_from_window()
-    #boring.away_from_window2()
-    boring.away_from_window3()
+
+    boring.test_rotmove_side_drive()
+
+
+
+
+
     #boring.appendReversePath()
-
-
 
 
     if is_ros:
