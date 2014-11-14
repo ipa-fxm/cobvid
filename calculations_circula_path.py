@@ -16,6 +16,7 @@ acc_expr = Integral(profile, (t, 0, timescale*T)).subs(timescale, pacc)
 lin_expr = wmax * (1-(pacc+pdec)) * T
 dec_expr = Integral(profile, (t, 0, timescale*T)).subs(timescale, pdec)
 
+
 expr = Eq(phi , acc_expr + lin_expr + dec_expr)
 pprint(expr)
 

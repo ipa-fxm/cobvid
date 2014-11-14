@@ -44,7 +44,7 @@ class Plotter(object):
         if plot_map:
             self.plot_map()
 
-        if plot_profile or plot_profile:
+        if plot_map or plot_profile:
             plt.show()
 
 
@@ -71,7 +71,11 @@ class Plotter(object):
         accwarn = np.logical_or(accwarn1, accwarn2)
         accwarn = np.logical_or(accwarn, accwarn3)
 
-        collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-1, ymax=1, where=accwarn, facecolor='black', alpha=0.2)
+        collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_velocity, ymax=self.timeline.profile.max_linear_velocity, where=accwarn1, facecolor='blue', alpha=0.2)
+        ax2.add_collection(collection)
+        collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_velocity, ymax=self.timeline.profile.max_linear_velocity, where=accwarn2, facecolor='green', alpha=0.2)
+        ax2.add_collection(collection)
+        collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_angular_velocity, ymax=self.timeline.profile.max_angular_velocity, where=accwarn3, facecolor='red', alpha=0.2)
         ax2.add_collection(collection)
 
         ax2.plot(self.tdata, self.timeline.TLX)
@@ -96,7 +100,11 @@ class Plotter(object):
         accwarn = np.logical_or(accwarn1, accwarn2)
         accwarn = np.logical_or(accwarn, accwarn3)
 
-        collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-1, ymax=1, where=accwarn, facecolor='black', alpha=0.2)
+        collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_acceleration, ymax=self.timeline.profile.max_linear_acceleration, where=accwarn1, facecolor='blue', alpha=0.2)
+        ax3.add_collection(collection)
+        collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_acceleration, ymax=self.timeline.profile.max_linear_acceleration, where=accwarn2, facecolor='green', alpha=0.2)
+        ax3.add_collection(collection)
+        collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_angular_acceleration, ymax=self.timeline.profile.max_angular_acceleration, where=accwarn3, facecolor='red', alpha=0.2)
         ax3.add_collection(collection)
 
         plt.tight_layout()
@@ -117,6 +125,7 @@ class Plotter(object):
 
         last_endpoint = 0
         color_scale = 0.5
+        idx=0
         for idx, sec in enumerate(self.timeline.SECTIONS):
             name = sec['name']
             sp = sec['at_sample']
@@ -257,6 +266,11 @@ class Timeline(object):
             self.syncTimeline()
         self.SECTIONS.append({'name': name, 'at_sample': len(self)})
 
+    def appendReversePath(self):
+        self.syncTimeline()
+        self.appendX(self.TLX[::-1]*-1)
+        self.appendY(self.TLY[::-1]*-1)
+        self.appendTH(self.TLTH[::-1]*-1)
 
 class Bricks(object):
     def __init__(self, profile):
@@ -323,25 +337,181 @@ class BoringMovement(Timeline, Bricks):
     def __init__(self, profile):
         super(BoringMovement, self).__init__(profile)
 
-    def test1(self):
-        self.appendX(self.lin(duration=3, velocity=0))
+    def test_speed_linear(self):
+        self.appendX(self.lin(duration=2, velocity=0))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.7, velocity_end=0, acc_percentage=0.17, dec_percentage=0.4, duration=3))
+        self.syncTimeline()
+
+        self.appendReversePath()
+
+    def test_speed_angular(self):
+        self.appendX(self.lin(duration=2, velocity=0))
+        self.syncTimeline()
+
+        tlx, tlth = self.circular_path(radius=0, phi=np.pi, duration=1.8, acc_percentage=0.35, dec_percentage=0.35)
+        self.appendX(tlx)
+        self.appendTH(tlth)
+
+        self.syncTimeline()
+
+        self.appendReversePath()
+
+    def test_speed_circula_path(self):
+        self.appendX(self.lin(duration=2, velocity=0))
+        self.syncTimeline()
+
+        tlx, tlth = self.circular_path(radius=1.5, phi=np.pi/2, duration=5, acc_percentage=0.2, dec_percentage=0.2)
+        self.appendX(tlx)
+        self.appendTH(tlth)
+
+        self.syncTimeline()
+
+        self.appendReversePath()
+
+    def test_stuff(self):
+        self.appendX(self.lin(duration=2, velocity=0))
 
         # KREISBAHN
         ############
 
         self.new_section('test lin')
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.4, velocity_end=0, acc_percentage=0.25, dec_percentage=0.25, duration=3))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.2, dec_percentage=0, duration=2))
+        self.appendX(self.lin_acc(velocity_start=0.2, velocity_lin=0.4, velocity_end=0, acc_percentage=0.2, dec_percentage=0.35, duration=2))
 
 
         self.new_section('test circular_path')
-        tlx, tlth = self.circular_path(radius=0.5, phi=np.pi/2, duration=4)
+        tlx, tlth = self.circular_path(radius=0.5, phi=np.pi/2, duration=3.8, acc_percentage=0.3, dec_percentage=0.3)
         self.appendX(tlx)
         self.appendTH(tlth)
 
         self.syncTimeline()
 
 
+    def to_window(self):
+        self.appendX(self.lin(duration=2, velocity=0))
+        self.syncTimeline()
 
+        self.new_section('annaehern')
+        self.appendX(self.acc(velocity_start=0, velocity_end=0.31, duration=0.5))
+        self.appendX(self.lin(0.31, 2))
+
+
+        self.new_section('ausrichtung fenster')
+        tlx, tlth = self.circular_path(radius=-1.25, phi=-np.pi/2, duration=10, acc_percentage=0, dec_percentage=0.5)
+        self.appendX(tlx)
+        self.appendTH(tlth)
+
+        self.new_section('look')
+        self.appendX(self.lin(duration=0.5, velocity=0))
+        self.syncTimeline()
+
+        tlx, tlth = self.circular_path(radius=0, phi=-np.pi/4, duration=3.5, acc_percentage=0.6, dec_percentage=0.4)
+        self.appendX(tlx)
+        self.appendTH(tlth)
+        self.syncTimeline()
+
+        self.appendX(self.lin(duration=1, velocity=0))
+        self.syncTimeline()
+
+        tlx, tlth = self.circular_path(radius=0, phi=np.pi/2, duration=5, acc_percentage=0.4, dec_percentage=0.5)
+        self.appendX(tlx)
+        self.appendTH(tlth)
+        self.syncTimeline()
+
+        self.appendX(self.lin(duration=1, velocity=0))
+        self.syncTimeline()
+
+        tlx, tlth = self.circular_path(radius=0, phi=-np.pi/4, duration=4, acc_percentage=0.6, dec_percentage=0.4)
+        self.appendX(tlx)
+        self.appendTH(tlth)
+        self.syncTimeline()
+
+        self.appendX(self.lin(duration=0.5, velocity=0))
+        self.syncTimeline()
+
+    def away_from_window(self):
+        self.new_section('\nenfernen vom fenster')
+        self.appendX(self.lin_acc(velocity_start=0, velocity_end=0.3, velocity_lin=-0.3, dec_percentage=0.5, duration=2))
+
+        #self.appendTH(self.lin(velocity=0.8, duration=0.25))
+        self.appendTH(self.lin_acc(velocity_start=0, velocity_end=0, velocity_lin=0.8, acc_percentage=0.2, dec_percentage=0.2, duration=2))
+
+        #self.appendTH(self.circular_path(radius=0, ))
+
+        #self.appendY(self.lin(velocity=0, duration=0.5))
+        self.appendY(self.lin_acc(velocity_start=0, velocity_end=0, velocity_lin=0.3, acc_percentage=0.5, duration=1.5))
+
+
+        self.syncTimeline()
+
+
+        self.appendX(self.acc(velocity_start=0.3, velocity_end=0, duration=1))
+
+        self.syncTimeline()
+
+    def away_from_window2(self):
+        self.new_section('\nenfernen vom fenster')
+
+        scale = 3
+        T = 1.5*scale
+
+        self.appendX(self.lin(velocity=0, duration=T/4))
+        self.appendX(self.sin_t(A=0.3, f=2.0/3/3/scale, phi=0, T=T*3/4))
+        self.appendX(self.lin(0.3, T*1/4))
+        self.appendY(self.sin_t(A=0.2/scale, f=2.0/3/scale, phi=0, T=T/2))
+        self.appendTH(self.sin_t(A=0.7, f=1.0/3/scale, phi=0, T=T))
+
+        self.syncTimeline()
+
+    def away_from_window3(self):
+
+        self.new_section('\nenfernen vom fenster')
+
+        #self.appendX(self.acc(0, -1, 0.5))
+        #self.appendY(self.acc(0, 1, 0.5))
+
+        #self.appendY(self.sin(-np.pi, 0, 2))
+
+        #self.appendX(self.sin(-np.pi, np.pi/4, 6)*0.2)
+        #self.appendY(self.sin(0, np.pi, 6)*0.2)
+
+
+        lin90_3, th90_3 = self.circular_path(radius=0.2, phi=np.pi/2, duration=3, acc_percentage=0.25, dec_percentage=0.25)
+        lin90_6, th90_6 = self.circular_path(radius=0.5, phi=np.pi*5/8, duration=6, acc_percentage=0.35, dec_percentage=0.25)
+
+
+
+
+        self.appendY(self.lin(velocity=0, duration=0.5))
+        self.appendY(self.lin_acc(velocity_start=0, velocity_lin=0.15, velocity_end=0, acc_percentage=0.3, dec_percentage=0.3, duration=3.5))
+        #self.appendY(lin90_3*2/3)
+
+        self.appendTH(self.lin_acc(velocity_start=0, velocity_lin=0.55, velocity_end=0, acc_percentage=0.35, dec_percentage=0.25, duration=5))
+        #self.appendTH(th90_6*1.1)
+
+
+
+        #self.appendX(self.lin(velocity=0, duration=1.5))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=-0.08, velocity_end=0, acc_percentage=0.7, dec_percentage=0.3, duration=1.5))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=5.5))
+        #self.appendX(lin90_6*2/3)
+
+
+
+        #self.appendX(self.lin(velocity=0, duration=3))
+        #self.appendX(lin45*-1)
+
+
+        #lin, th = self.circular_path(radius=-1, phi=np.pi/4, duration=3, acc_percentage=0, dec_percentage=0.5)
+        #self.appendY(lin)
+        #self.appendX(lin*-1)
+        #self.appendTH(th)
+
+        #self.new_section('\n90 grad')
+
+
+
+        self.syncTimeline()
 
 if __name__ == '__main__':
 
@@ -353,10 +523,20 @@ if __name__ == '__main__':
         plot_profile = 'profile' in sys.argv[idx:idx+2]
     is_ros = '-ros' in sys.argv
 
+    cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
+                             max_linear_acceleration=0.022, max_angular_acceleration=0.074)
+    boring = BoringMovement(profile=cob3_3_profile)
 
-    boring = BoringMovement(profile=Profile(rate=100, max_linear_velocity=0.4, max_angular_velocity=0.6,
-                                            max_linear_acceleration=0.01, max_angular_acceleration=0.01))
-    boring.test1()
+    boring.test_speed_linear()
+    #boring.test_speed_angular()
+    #boring.test_speed_circula_path()
+    #boring.to_window()
+    #boring.away_from_window()
+    #boring.away_from_window2()
+    #boring.away_from_window3()
+    #boring.appendReversePath()
+
+
 
 
     if is_ros:
