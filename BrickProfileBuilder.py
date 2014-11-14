@@ -116,7 +116,7 @@ class Plotter(object):
 
         fig, (ax1) = plt.subplots(nrows=1, ncols=1)
 
-        x = self.timeline.TLX * np.cos(self.TLTHD) + self.timeline.TLY * np.sin(self.TLTHD)
+        x = self.timeline.TLX * np.cos(self.TLTHD) - self.timeline.TLY * np.sin(self.TLTHD)
         y = self.timeline.TLY * np.cos(self.TLTHD) + self.timeline.TLX * np.sin(self.TLTHD)
 
         x = integrate.cumtrapz(x, self.tdata)
@@ -337,6 +337,23 @@ class BoringMovement(Timeline, Bricks):
     def __init__(self, profile):
         super(BoringMovement, self).__init__(profile)
 
+    def test_map(self):
+        self.new_section('90 Grad Y')
+        tlx, tlth = self.circular_path(radius=0.5, phi=np.pi/2, duration=6, acc_percentage=0.35, dec_percentage=0.35)
+        self.appendY(tlx)
+        self.appendTH(tlth)
+        self.syncTimeline()
+
+        self.new_section('LIN X')
+        self.appendX(self.lin(duration=2, velocity=0.4))
+
+        self.new_section('90 Grad X')
+        tlx, tlth = self.circular_path(radius=0.5, phi=np.pi/2, duration=6, acc_percentage=0.35, dec_percentage=0.35)
+        self.appendX(tlx)
+        self.appendTH(tlth)
+        self.syncTimeline()
+
+
     def test_speed_linear(self):
         self.appendX(self.lin(duration=2, velocity=0))
         self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.7, velocity_end=0, acc_percentage=0.17, dec_percentage=0.4, duration=3))
@@ -527,13 +544,14 @@ if __name__ == '__main__':
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074)
     boring = BoringMovement(profile=cob3_3_profile)
 
-    boring.test_speed_linear()
+    #boring.test_map()
+    #boring.test_speed_linear()
     #boring.test_speed_angular()
     #boring.test_speed_circula_path()
     #boring.to_window()
     #boring.away_from_window()
     #boring.away_from_window2()
-    #boring.away_from_window3()
+    boring.away_from_window3()
     #boring.appendReversePath()
 
 
