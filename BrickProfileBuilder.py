@@ -7,7 +7,7 @@ import numpy as np
 import time
 import sys
 from scipy import integrate
-
+from scipy.misc import comb
 
 class Plotter(object):
     def __init__(self, timeline, plot_profile=False, plot_map=False):
@@ -273,6 +273,60 @@ class Timeline(object):
         self.appendY(self.TLY[::-1]*-1)
         self.appendTH(self.TLTH[::-1]*-1)
 
+class Bezier(object):
+    def __init__(self, profile):
+        self.profile = profile
+
+    def bernstein_poly(self, i, n, t):
+        return comb(n, i) * ( t**(n-i) ) * (1 - t)**i
+
+    def bezier_curve(self, points, nTimes=1000):
+        nPoints = len(points)
+        xPoints, yPoints = map(np.array, zip(*points))
+        t = np.linspace(0.0, 1.0, nTimes)
+
+        polynomial_array = np.array([self.bernstein_poly(i, nPoints-1, t) for i in range(0, nPoints)])
+
+        xvals = np.dot(xPoints, polynomial_array)
+        yvals = np.dot(yPoints, polynomial_array)
+
+        return xvals[::-1], yvals[::-1]
+
+    def foo(self):
+
+        points = np.array([[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
+                           [1, -1], [1, -1], [1, -1], [2, -1], [3, -1], [3, -1], [3, -1], [3, 0],
+                           [2.5, 0.5], [2, 1], [1.5, 1], [0.5, 1], [-0.5, 1], [-0.5, 0], [-0.5, -1], [0.5, -1], ], np.float)
+
+        duration = 18.0  # [s]
+        rate = 100.0  # [Hz]
+        sample_time = 1.0/rate
+        nTimes=duration*rate
+
+        xvals, yvals = self.bezier_curve(points, nTimes=nTimes)
+
+        xdiff = np.array([0])
+        ydiff = np.array([0])
+        xdiff = np.append(xdiff, np.diff(xvals))
+        ydiff = np.append(ydiff, np.diff(yvals))
+        rel_distance = np.sqrt(xdiff**2 + ydiff**2)
+        abs_phi = np.arctan2(xdiff, ydiff)
+
+
+        rel_phi = np.diff(abs_phi)
+        corridx = [(idx+1, 1 if phi < 0 else -1) for idx, phi in enumerate(rel_phi) if abs(phi) > 6]
+        for k, v in corridx:
+            abs_phi[k:] += np.pi*2*v
+        rel_phi = np.diff(abs_phi)
+
+        velocity = rel_distance / sample_time
+        theta_velocity = rel_phi / sample_time
+
+        return velocity, theta_velocity
+
+
+
+
 class Bricks(object):
     def __init__(self, profile):
         self.profile = profile
@@ -353,7 +407,7 @@ class Bricks(object):
 
         return tlx, tly, tlth
 
-class BoringMovement(Timeline, Bricks):
+class BoringMovement(Timeline, Bricks, Bezier):
     def __init__(self, profile):
         super(BoringMovement, self).__init__(profile)
 
@@ -394,10 +448,10 @@ class BoringMovement(Timeline, Bricks):
         self.appendReversePath()
 
     def test_speed_circula_path(self):
-        self.appendX(self.lin(duration=2, velocity=0))
+        self.appendX(self.lin(duration=3, velocity=0))
         self.syncTimeline()
 
-        tlx, tlth = self.circular_path(radius=1.5, phi=np.pi/2, duration=5, acc_percentage=0.2, dec_percentage=0.2)
+        tlx, tlth = self.circular_path(radius=5, phi=np.pi/2, duration=3, acc_percentage=0.2, dec_percentage=0.2)
         self.appendX(tlx)
         self.appendTH(tlth)
 
@@ -500,6 +554,10 @@ class BoringMovement(Timeline, Bricks):
         self.new_section('speed down')
         self.appendX(self.lin_acc(velocity_start=speed, velocity_lin=speed, velocity_end=0, acc_percentage=0, dec_percentage=0.4, duration=1.5))
 
+    def testBezier(self):
+        x, th = self.foo()
+        self.appendX(x)
+        self.appendTH(th)
 
 if __name__ == '__main__':
 
@@ -523,9 +581,9 @@ if __name__ == '__main__':
     #boring.to_window()
     #boring.away_from_window()
 
-    boring.test_rotmove_side_drive()
+    #boring.test_rotmove_side_drive()
 
-
+    boring.testBezier()
 
 
 
