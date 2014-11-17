@@ -6,6 +6,11 @@ try:
     roslib.load_manifest('cobvid')
 except:
     isLive=False
+    print
+    print '#'*39
+    print '# NO ROS ENVIRONMENT - SKIP EXECUTION #'
+    print '#'*39
+    print
 
 import rospy
 import actionlib
