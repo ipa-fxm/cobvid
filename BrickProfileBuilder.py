@@ -292,18 +292,25 @@ class Bezier(object):
 
         return xvals[::-1], yvals[::-1]
 
-    def foo(self):
+    def createBezier(self, points, duration=0):
+        if isinstance(points, list):
+            points = np.array(points, np.float)
 
-        points = np.array([[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
-                           [1, -1], [1, -1], [1, -1], [2, -1], [3, -1], [3, -1], [3, -1], [3, 0],
-                           [2.5, 0.5], [2, 1], [1.5, 1], [0.5, 1], [-0.5, 1], [-0.5, 0], [-0.5, -1], [0.5, -1], ], np.float)
+        nSamples=duration*self.profile.rate
 
-        duration = 18.0  # [s]
-        rate = 100.0  # [Hz]
-        sample_time = 1.0/rate
-        nTimes=duration*rate
 
-        xvals, yvals = self.bezier_curve(points, nTimes=nTimes)
+        xvals, yvals = self.bezier_curve(points, nTimes=nSamples)
+
+        startsample = 0
+        endsample = 100
+
+        tsamp = np.linspace(startsample+1, endsample-1, self.calc_samples(1)-1)
+
+        scale = ((np.cos(np.pi * tsamp / endsample)+1)/2.0)[::-1]
+
+
+        xvals[startsample+1:endsample] *= scale
+        yvals[startsample+1:endsample] *= scale
 
         xdiff = np.array([0])
         ydiff = np.array([0])
@@ -313,14 +320,23 @@ class Bezier(object):
         abs_phi = np.arctan2(xdiff, ydiff)
 
 
+
         rel_phi = np.diff(abs_phi)
         corridx = [(idx+1, 1 if phi < 0 else -1) for idx, phi in enumerate(rel_phi) if abs(phi) > 6]
         for k, v in corridx:
             abs_phi[k:] += np.pi*2*v
         rel_phi = np.diff(abs_phi)
 
-        velocity = rel_distance / sample_time
-        theta_velocity = rel_phi / sample_time
+        velocity = rel_distance / self.profile.sample_time
+        theta_velocity = rel_phi / self.profile.sample_time
+
+
+
+
+
+
+
+
 
         return velocity, theta_velocity
 
@@ -555,7 +571,14 @@ class BoringMovement(Timeline, Bricks, Bezier):
         self.appendX(self.lin_acc(velocity_start=speed, velocity_lin=speed, velocity_end=0, acc_percentage=0, dec_percentage=0.4, duration=1.5))
 
     def testBezier(self):
-        x, th = self.foo()
+        points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
+                           [1, -1], [1, -1], [1, -1], [2, -1], [3, -1], [3, -1], [3, -1], [3, 0],
+                           [2.5, 0.5], [2, 1], [1.5, 1], [0.5, 1], [-0.5, 1], [-0.5, 0], [-0.5, -1], [0.5, -1], ]
+        points = [[0,0], [0,1]]  #, [1,1]
+
+
+
+        x, th = self.createBezier(points, duration=8)
         self.appendX(x)
         self.appendTH(th)
 
