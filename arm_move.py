@@ -12,6 +12,7 @@ except:
     print '#'*39
     print
 
+import rosnode
 import rospy
 import actionlib
 import control_msgs.msg
@@ -23,7 +24,8 @@ from control_msgs.msg import FollowJointTrajectoryAction
 
 from trajectory_msgs.msg import JointTrajectoryPoint
 import numpy as np
-
+from itertools import repeat
+import math as m
 
 class JTP(object):
 
@@ -49,6 +51,19 @@ class JTP(object):
         self.time_from_start = rel_time
 
     @staticmethod
+    def get_mirrored_jtp_list(jtp_list):
+        new_list = list()
+        for jtp in jtp_list:
+            new_list.append(JTP.get_mirrored_jtp(jtp))
+        return new_list
+
+    @staticmethod
+    def get_mirrored_jtp(jtp):
+        positions = [p*-1 for p in jtp.point.positions]
+        return JTP(jtp.time_from_start, *positions)
+
+
+    @staticmethod
     def _updateTimes(jtp_list):
         cur_time = 0
         for jtp in jtp_list:
@@ -60,118 +75,145 @@ class JTP(object):
         JTP._updateTimes(jtp_list)
         return [jtp.point for jtp in jtp_list]
 
+    @staticmethod
+    def get_total_time_duration(*jtp_lists):
+        total_time = list()
+        for idx, jtp_list in enumerate(jtp_lists):
+            list_time = sum([jtp.time_from_start for jtp in jtp_list])
+            total_time.append(list_time)
+        return max(total_time)
+
     def __repr__(self):
         return 'TimeFromstart: %s - Positions: %s - Velocities: %s' % \
-               (self.point.time_from_start, self.point.positions, self.point.velocities)
+               (self.point.time_from_start, [m.degrees(p) for p in self.point.positions], self.point.velocities)
 
-class synchronous_traj():
-    def __init__(self):
+class SynchronousTrajectory():
+    def __init__(self, ros_rate=10):
+        NODENAME = 'arm_traj_action'
+        rospy.init_node(NODENAME)
+        r = rospy.Rate(ros_rate)
 
-        #initializing the ROS node
-        rospy.init_node('arm_traj_action')
-        rospy.sleep(0.5)
+        for i in range(30):
+            if '/' + NODENAME in rosnode.get_node_names():
+                break
+            print 'establishing node...'
+            rospy.sleep(0.1)
+        else:
+            print 'timout reached, node creation failed. exiting application'
+            exit()
+
         self.action_client_right = actionlib.SimpleActionClient('/arm_right/joint_trajectory_controller/follow_joint_trajectory', FollowJointTrajectoryAction)
         self.action_client_left = actionlib.SimpleActionClient('/arm_left/joint_trajectory_controller/follow_joint_trajectory', FollowJointTrajectoryAction)
         self.action_client_right.wait_for_server()
         self.action_client_left.wait_for_server()
 
-    def send_jtp_list_left(self, jtp_list):
-        # Creates the goal object to pass to the server
+    def get_joint_names(self, is_left_arm=True):
+        joint_name_pattern = ['arm_%s_%d_joint']*7
+        direction = 'left' if is_left_arm else 'right'
+        return [pattern % (direction, idx+1) for idx, pattern in enumerate(joint_name_pattern)]
+
+    def send_jtp_list_synchronous(self, jtp_list_left, jtp_list_right):
+        self.send_jtp_list(jtp_list_left, is_left_arm=True)
+        self.send_jtp_list(jtp_list_right, is_left_arm=False)
+        return JTP.get_total_time_duration(jtp_list_left, jtp_list_right)
+
+    def send_jtp_list(self, jtp_list, is_left_arm=True):
+        print 'Sending following JTP-Points to %s arm:' % ('left' if is_left_arm else 'right')
+        for jtp in jtp_list:
+            print jtp
+        action_client = self.action_client_left if is_left_arm else self.action_client_right
         goal = control_msgs.msg.FollowJointTrajectoryGoal()
-        goal.trajectory.joint_names = ['arm_left_1_joint', 'arm_left_2_joint', 'arm_left_3_joint', 'arm_left_4_joint',
-                                       'arm_left_5_joint', 'arm_left_6_joint', 'arm_left_7_joint']
+        goal.trajectory.joint_names = self.get_joint_names(is_left_arm)
         goal.trajectory.points = JTP.get_point_list(jtp_list)
-        self.action_client_left.send_goal(goal)
+        action_client.send_goal(goal)
+        rospy.sleep(0.05)
+        return JTP.get_total_time_duration(jtp_list)
+
+class ArmMovement(object):
+
+    def home_position(self):
+        return [JTP(10)], [JTP(10)]
 
 
-    def send_jtp_list_right(self, jtp_list):
-        # Creates the goal object to pass to the server
-        goal = control_msgs.msg.FollowJointTrajectoryGoal()
-        goal.trajectory.joint_names = ['arm_right_1_joint', 'arm_right_2_joint', 'arm_right_3_joint', 'arm_right_4_joint',
-                                       'arm_right_5_joint', 'arm_right_6_joint', 'arm_right_7_joint']
-        goal.trajectory.points = JTP.get_point_list(jtp_list)
-        self.action_client_right.send_goal(goal)
+    def boring_movement_variant(self):
 
+        back_left =      {'p1': m.radians(35),  'p2': m.radians(-65), 'p3':  m.radians(89),  'p4': m.radians(60)}
+        norm_left =      {'p1': m.radians(55),  'p2': m.radians(-58), 'p3':  m.radians(90),  'p4': m.radians(70)}
+        norm_front_cp1 = {'p1': m.radians(85),  'p2': m.radians(-54), 'p3': m.radians(130),  'p4': m.radians(74)}
+        front_left =     {'p1': m.radians(120), 'p2': m.radians(-65), 'p3': m.radians(160),  'p4': m.radians(75)}
 
+        time_delta = 4
+        jtp_list_left = list()
+        #jtp_list_left.append(JTP(rel_time=8))
+        jtp_list_left.append(JTP(rel_time=4, **norm_left))
+        for i in range(1):
+            jtp_list_left.append(JTP(rel_time=time_delta, **back_left))
+            jtp_list_left.append(JTP(rel_time=time_delta, **norm_left))
+            jtp_list_left.append(JTP(rel_time=time_delta, **norm_front_cp1))
+            jtp_list_left.append(JTP(rel_time=time_delta, **front_left))
+            jtp_list_left.append(JTP(rel_time=time_delta, **norm_front_cp1))
+            jtp_list_left.append(JTP(rel_time=time_delta, **norm_left))
+
+        return jtp_list_left, list()
+
+    def boring_movement(self):
+
+        norm_left = {'p1': m.radians(55), 'p2': m.radians(-60), 'p3': m.radians(90), 'p4': m.radians(70)}
+        front_left = {'p1': m.radians(100), 'p2': m.radians(-60), 'p3': m.radians(130), 'p4': m.radians(90)}
+        front_boring_left = {'p1': m.radians(80), 'p2': m.radians(-60), 'p3': m.radians(110), 'p4': m.radians(80)}
+
+        time_delta = 3
+        jtp_list_left = list()
+
+        # go to normal position - long duration because it's unclear where was the last position
+        jtp_list_left.append(JTP(rel_time=4, **norm_left))
+
+        # build movement seperate so split-time movment is the reversed mirrored list
+        jtp_list_move_left = list()
+        for i in range(4):
+            jtp_list_move_left.append(JTP(rel_time=time_delta, **norm_left))
+            jtp_list_move_left.append(JTP(rel_time=time_delta, **front_boring_left))
+
+        # extend lists for both sides with mirrored and reversed movement list
+        jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_left)
+        jtp_list_move_right = JTP.get_mirrored_jtp_list(jtp_list_move_left[::-1])
+
+        jtp_list_left.extend(jtp_list_move_left)
+        jtp_list_right.extend(jtp_list_move_right)
+
+        # go to normal position on both arms
+        jtp_list_left.append(JTP(rel_time=time_delta, **norm_left))
+        jtp_list_right.append(JTP.get_mirrored_jtp(JTP(rel_time=time_delta, **norm_left)))
+
+        return jtp_list_left, jtp_list_right
+
+    def cross_arms_behind(self):
+        norm_left = {'p1': m.radians(55), 'p2': m.radians(-60), 'p3': m.radians(90), 'p4': m.radians(70)}
+
+        jtp_list_left = list()
+        jtp_list_left.append(JTP(rel_time=4, **norm_left))
+        jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_left)
+
+        return jtp_list_left, jtp_list_right
 
 if __name__=='__main__':
-    import math as m
-
-
-    front     = {'p1': m.radians(-50), 'p2': m.radians(80), 'p3': m.radians(25), 'p4': m.radians(50)}
-    front_cp1 = {'p1': m.radians(-90), 'p2': m.radians(60), 'p3': m.radians(-45), 'p4': m.radians(40)}
-    back_cp1 = {'p1': m.radians(-100), 'p2': m.radians(50), 'p3': m.radians(20), 'p4': m.radians(45)}
-    back      = {'p1': m.radians(-110), 'p2': m.radians(50), 'p3': m.radians(20), 'p4': m.radians(60)}
-    #JTP()
-    jtp_list1 = list()
-    jtp_list1.append(JTP(rel_time=8))
-    jtp_list1.append(JTP(rel_time=4, **front))
-    jtp_list1.append(JTP(rel_time=2, **front_cp1))
-    jtp_list1.append(JTP(rel_time=2, **back_cp1))
-    jtp_list1.append(JTP(rel_time=3, **back))
-    jtp_list1.append(JTP(rel_time=2, **back_cp1))
-    jtp_list1.append(JTP(rel_time=2, **front_cp1))
-    jtp_list1.append(JTP(rel_time=3, **front))
-
-
-
-    back_left =      {'p1': m.radians(35),  'p2': m.radians(-65), 'p3':  m.radians(89),  'p4': m.radians(60)}
-    norm_left =      {'p1': m.radians(55),  'p2': m.radians(-58), 'p3':  m.radians(90),  'p4': m.radians(70)}
-    norm_front_cp1 = {'p1': m.radians(85),  'p2': m.radians(-54), 'p3': m.radians(130),  'p4': m.radians(74)}
-    front_left =     {'p1': m.radians(120), 'p2': m.radians(-65), 'p3': m.radians(160),  'p4': m.radians(75)}
-    time_delta = 2
-
-    jtp_list_left2 = list()
-    #jtp_list_left2.append(JTP(rel_time=8))
-
-    jtp_list_left2.append(JTP(rel_time=4, **norm_left))
-    for i in range(8):
-        jtp_list_left2.append(JTP(rel_time=time_delta, **back_left))
-        jtp_list_left2.append(JTP(rel_time=time_delta, **norm_left))
-        jtp_list_left2.append(JTP(rel_time=time_delta, **norm_front_cp1))
-        jtp_list_left2.append(JTP(rel_time=time_delta, **front_left))
-        jtp_list_left2.append(JTP(rel_time=time_delta, **norm_front_cp1))
-        jtp_list_left2.append(JTP(rel_time=time_delta, **norm_left))
-
-    time_delta = 4
-    jtp_list_left3 = list()
-    jtp_list_left3.append(JTP(rel_time=8))
-    #for i in range(3):
-    #    jtp_list_left3.append(JTP(rel_time=time_delta, p1=m.radians(55), p2=m.radians(-60), p3=m.radians(90), p4=m.radians(70)))
-    #    jtp_list_left3.append(JTP(rel_time=time_delta, p1=m.radians(100), p2=m.radians(-60), p3=m.radians(130), p4=m.radians(90)))
-
-
-    jtp_list_right3 = list()
-    jtp_list_right3.append(JTP(rel_time=8))
-
-    #for i in range(3):
-    #    jtp_list_right3.append(JTP(rel_time=time_delta, p1=m.radians(-100), p2=m.radians(60), p3=m.radians(-130), p4=m.radians(-90)))
-    #    jtp_list_right3.append(JTP(rel_time=time_delta, p1=m.radians(-55), p2=m.radians(60), p3=m.radians(-90), p4=m.radians(-70)))
-
-
-
-
-    jtp_list_right2 = list()
-
-
-    jtp_list_right2.append(JTP(rel_time=8))
-    jtp_list_right2.append(JTP(rel_time=8, p1=m.radians(-55), p2=m.radians(65), p3=m.radians(-90), p4=m.radians(-75)))
-
-    jtp_list_left = jtp_list_left3
-    jtp_list_right = jtp_list_right3
-
-
-
 
     if isLive:
-        sync_traj = synchronous_traj()
-        r = rospy.Rate(10)
-        sync_traj.send_jtp_list_left(jtp_list_left)
-        rospy.sleep(0.5)
-        sync_traj.send_jtp_list_right(jtp_list_right)
-        #sync_traj.send_goal()
+        st = SynchronousTrajectory()
+        am = ArmMovement()
+
+        #rospy.sleep(st.send_jtp_list_synchronous(*am.home_position()))
+
+        #rospy.sleep(st.send_jtp_list_synchronous(*am.boring_movement_variant()))
+        #rospy.sleep(st.send_jtp_list_synchronous(*am.boring_movement()))
+
+        rospy.sleep(st.send_jtp_list_synchronous(*am.cross_arms_behind()))
 
 
-
+        print
+        print '*%s*' % ('-'*17)
+        print '| SCRIPT FINISHED |'
+        print '*%s*' % ('-'*17)
+        print
 
 
