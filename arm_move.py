@@ -34,6 +34,8 @@ class JTP(object):
                  v1=0, v2=0, v3=0, v4=0, v5=0, v6=0, v7=0, jtp=None):
 
         positions = [p1, p2, p3, p4, p5, p6, p7]
+        isPosSet = bool(sum([int(p is not None) for p in positions]))
+
         for k, v in enumerate(positions):
             positions[k] = v if v else jtp.point.positions[k] if jtp else 0
 
@@ -83,9 +85,21 @@ class JTP(object):
             total_time.append(list_time)
         return max(total_time)
 
+    @staticmethod
+    def extend_base_list(base_list=None, *jtp_lists):
+        if not base_list:
+            base_list = list([None]*len(jtp_lists))
+
+        for idx, jtp_lists in enumerate(jtp_lists):
+            if not base_list[idx]:
+                base_list[idx] = list()
+            base_list[idx].extend(jtp_lists)
+        return base_list
+
     def __repr__(self):
         return 'TimeFromstart: %s - Positions: %s - Velocities: %s' % \
-               (self.point.time_from_start, [m.degrees(p) for p in self.point.positions], self.point.velocities)
+               (self.point.time_from_start, self.point.positions, self.point.velocities)
+               #(self.point.time_from_start, [m.degrees(p) for p in self.point.positions], self.point.velocities)
 
 class SynchronousTrajectory():
     def __init__(self, ros_rate=10):
@@ -129,10 +143,34 @@ class SynchronousTrajectory():
         rospy.sleep(0.05)
         return JTP.get_total_time_duration(jtp_list)
 
-class ArmMovement(object):
 
-    def home_position(self):
-        return [JTP(10)], [JTP(10)]
+class ArmMovement(object):
+    def __init__(self):
+        self.pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0}
+
+        self.pose_cross_arms_behind = {'p1': m.radians(40), 'p2': m.radians(-65),
+                                       'p3': m.radians(170), 'p4': m.radians(70)}
+
+        self.pose_relaxed_arms_side = {'p1': m.radians(55), 'p2': m.radians(-60+30),
+                                       'p3': m.radians(90), 'p4': m.radians(70)}
+
+        self.pose_waiting_arms_side = {'p1': m.radians(50), 'p2': m.radians(-30),
+                                       'p3': m.radians(120), 'p4': m.radians(90),
+                                       'p5': m.radians(20), 'p6': m.radians(50)}
+
+        self.pose_boring_walk_front = {'p1': m.radians(80), 'p2': m.radians(-60),
+                                       'p3': m.radians(110), 'p4': m.radians(80)}
+
+        self.pose_marsh_walk_front = {'p1': m.radians(100), 'p2': m.radians(-60+30),
+                                      'p3': m.radians(130), 'p4': m.radians(90)}
+
+    def movePose(self, pose, duration=4):
+        jtp_list_left = list()
+
+        jtp_list_left.append(JTP(rel_time=duration, **pose))
+        jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_left)
+
+        return jtp_list_left, jtp_list_right
 
 
     def boring_movement_variant(self):
@@ -156,45 +194,17 @@ class ArmMovement(object):
 
         return jtp_list_left, list()
 
-    def boring_movement(self):
-
-        norm_left = {'p1': m.radians(55), 'p2': m.radians(-60), 'p3': m.radians(90), 'p4': m.radians(70)}
-        front_left = {'p1': m.radians(100), 'p2': m.radians(-60), 'p3': m.radians(130), 'p4': m.radians(90)}
-        front_boring_left = {'p1': m.radians(80), 'p2': m.radians(-60), 'p3': m.radians(110), 'p4': m.radians(80)}
-
-        time_delta = 3
+    def movePoseSplit(self, pose1, pose2, duration=4, times=1):
         jtp_list_left = list()
 
-        # go to normal position - long duration because it's unclear where was the last position
-        jtp_list_left.append(JTP(rel_time=4, **norm_left))
+        for i in range(times):
+            jtp_list_left.append(JTP(rel_time=duration, **pose1))
+            jtp_list_left.append(JTP(rel_time=duration, **pose2))
 
-        # build movement seperate so split-time movment is the reversed mirrored list
-        jtp_list_move_left = list()
-        for i in range(4):
-            jtp_list_move_left.append(JTP(rel_time=time_delta, **norm_left))
-            jtp_list_move_left.append(JTP(rel_time=time_delta, **front_boring_left))
-
-        # extend lists for both sides with mirrored and reversed movement list
-        jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_left)
-        jtp_list_move_right = JTP.get_mirrored_jtp_list(jtp_list_move_left[::-1])
-
-        jtp_list_left.extend(jtp_list_move_left)
-        jtp_list_right.extend(jtp_list_move_right)
-
-        # go to normal position on both arms
-        jtp_list_left.append(JTP(rel_time=time_delta, **norm_left))
-        jtp_list_right.append(JTP.get_mirrored_jtp(JTP(rel_time=time_delta, **norm_left)))
+        jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_left[::-1])
 
         return jtp_list_left, jtp_list_right
 
-    def cross_arms_behind(self):
-        norm_left = {'p1': m.radians(55), 'p2': m.radians(-60), 'p3': m.radians(90), 'p4': m.radians(70)}
-
-        jtp_list_left = list()
-        jtp_list_left.append(JTP(rel_time=4, **norm_left))
-        jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_left)
-
-        return jtp_list_left, jtp_list_right
 
 if __name__=='__main__':
 
@@ -202,12 +212,75 @@ if __name__=='__main__':
         st = SynchronousTrajectory()
         am = ArmMovement()
 
-        #rospy.sleep(st.send_jtp_list_synchronous(*am.home_position()))
+        jtp_flow_data = list([None, None])
+        #jtp_flow_data = JTP.extend_base_list(jtp_flow_data, *am.home_position())
+        #jtp_flow_data = JTP.extend_base_list(jtp_flow_data, *am.cross_arms_behind(6))
+        #jtp_flow_data = JTP.extend_base_list(jtp_flow_data, *am.home_position())
+
+
+
+        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_home, 6))
+        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_relaxed_arms_side, 6))
+
+        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_waiting_arms_side, 8))
+        #JTP.extend_base_list(jtp_flow_data, *am.movePose(pose=am.pose_cross_arms_behind, duration=8))
+
 
         #rospy.sleep(st.send_jtp_list_synchronous(*am.boring_movement_variant()))
-        #rospy.sleep(st.send_jtp_list_synchronous(*am.boring_movement()))
 
-        rospy.sleep(st.send_jtp_list_synchronous(*am.cross_arms_behind()))
+        #JTP.extend_base_list(jtp_flow_data, *am.movePoseSplit(am.pose_relaxed_arms_side,
+        #                                                      am.pose_boring_walk_front, duration=3, times=4))
+
+        '''
+        #######################################################################
+        # PEN TESTING !!!        DO NOT EXECUTE WITH NORMAL POSE SETTINGS !!! #
+        # PEN TESTING !!!        DO NOT EXECUTE WITH NORMAL POSE SETTINGS !!! #
+        # PEN TESTING !!!        DO NOT EXECUTE WITH NORMAL POSE SETTINGS !!! #
+        #######################################################################
+
+
+        JTP.extend_base_list(jtp_flow_data, *am.movePoseSplit(am.pose_relaxed_arms_side,
+                                                              am.pose_marsh_walk_front, duration=1.75, times=3))
+
+        JTP.extend_base_list(jtp_flow_data, *am.movePoseSplit(am.pose_relaxed_arms_side,
+                                                              am.pose_marsh_walk_front, duration=1.5, times=3))
+
+        JTP.extend_base_list(jtp_flow_data, *am.movePoseSplit(am.pose_relaxed_arms_side,
+                                                              am.pose_marsh_walk_front, duration=1.25, times=3))
+
+        JTP.extend_base_list(jtp_flow_data, *am.movePoseSplit(am.pose_relaxed_arms_side,
+                                                              am.pose_marsh_walk_front, duration=1, times=3))
+
+        JTP.extend_base_list(jtp_flow_data, *am.movePoseSplit(am.pose_relaxed_arms_side,
+                                                              am.pose_marsh_walk_front, duration=2, times=3))
+
+
+        #######################################################################
+        # PEN TESTING !!!        DO NOT EXECUTE WITH NORMAL POSE SETTINGS !!! #
+        # PEN TESTING !!!        DO NOT EXECUTE WITH NORMAL POSE SETTINGS !!! #
+        # PEN TESTING !!!        DO NOT EXECUTE WITH NORMAL POSE SETTINGS !!! #
+        #######################################################################
+
+
+        JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_home, 4))
+        radians = m.radians(40)
+        basetime = 3
+        joint = 'p4'
+        while basetime >= 0.5:
+            print basetime
+            JTP.extend_base_list(jtp_flow_data, *am.movePose({joint: radians*-1}, basetime))
+            JTP.extend_base_list(jtp_flow_data, *am.movePose({joint: radians}, basetime*2))
+            JTP.extend_base_list(jtp_flow_data, *am.movePose({joint: 0}, basetime))
+            basetime /= 2.0
+
+        '''
+
+
+
+        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_relaxed_arms_side, 3))
+        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_home, 6))
+
+        rospy.sleep(st.send_jtp_list_synchronous(*jtp_flow_data))
 
 
         print
