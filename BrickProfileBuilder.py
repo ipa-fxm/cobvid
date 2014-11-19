@@ -301,21 +301,26 @@ class Bezier(object):
 
         xvals, yvals = self.bezier_curve(points, nTimes=nSamples)
 
-        startsample = 0
-        endsample = 100
+        #startsample = 0
+        #endsample = 100
 
-        tsamp = np.linspace(startsample+1, endsample-1, self.calc_samples(1)-1)
+        #tsamp = np.linspace(startsample+1, endsample-1, self.calc_samples(1)-1)
 
-        scale = ((np.cos(np.pi * tsamp / endsample)+1)/2.0)[::-1]
+        #scale = ((np.cos(np.pi * tsamp / endsample)+1)/2.0)[::-1]
 
 
-        xvals[startsample+1:endsample] *= scale
-        yvals[startsample+1:endsample] *= scale
+        #xvals[startsample+1:endsample] *= scale
+        #yvals[startsample+1:endsample] *= scale
 
+        '''
         xdiff = np.array([0])
         ydiff = np.array([0])
         xdiff = np.append(xdiff, np.diff(xvals))
         ydiff = np.append(ydiff, np.diff(yvals))
+        '''
+        xdiff = np.diff(xvals)
+        ydiff = np.diff(yvals)
+
         rel_distance = np.sqrt(xdiff**2 + ydiff**2)
         abs_phi = np.arctan2(xdiff, ydiff)
 
@@ -574,13 +579,19 @@ class BoringMovement(Timeline, Bricks, Bezier):
         points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
                            [1, -1], [1, -1], [1, -1], [2, -1], [3, -1], [3, -1], [3, -1], [3, 0],
                            [2.5, 0.5], [2, 1], [1.5, 1], [0.5, 1], [-0.5, 1], [-0.5, 0], [-0.5, -1], [0.5, -1], ]
-        points = [[0,0], [0,1]]  #, [1,1]
+        points = [[0,0], [0,1], [1,1]]
 
 
 
         x, th = self.createBezier(points, duration=8)
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=x[0], duration=1))
+        self.syncTimeline()
+
         self.appendX(x)
         self.appendTH(th)
+
+        self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
 
 if __name__ == '__main__':
 
@@ -607,6 +618,7 @@ if __name__ == '__main__':
     #boring.test_rotmove_side_drive()
 
     boring.testBezier()
+
 
 
 
