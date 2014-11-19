@@ -116,10 +116,10 @@ class SynchronousTrajectory():
             print 'timout reached, node creation failed. exiting application'
             exit()
 
-        self.action_client_right = actionlib.SimpleActionClient('/arm_right/joint_trajectory_controller/follow_joint_trajectory', FollowJointTrajectoryAction)
         self.action_client_left = actionlib.SimpleActionClient('/arm_left/joint_trajectory_controller/follow_joint_trajectory', FollowJointTrajectoryAction)
-        self.action_client_right.wait_for_server()
-        self.action_client_left.wait_for_server()
+        self.action_client_right = actionlib.SimpleActionClient('/arm_right/joint_trajectory_controller/follow_joint_trajectory', FollowJointTrajectoryAction)
+        print self.action_client_left.wait_for_server(timeout=rospy.Duration(2))
+        print self.action_client_right.wait_for_server(timeout=rospy.Duration(2))
 
     def get_joint_names(self, is_left_arm=True):
         joint_name_pattern = ['arm_%s_%d_joint']*7
@@ -146,17 +146,64 @@ class SynchronousTrajectory():
 
 class ArmMovement(object):
     def __init__(self):
-        self.pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0}
+        self.pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
+                          'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
-        self.pose_cross_arms_behind = {'p1': m.radians(40), 'p2': m.radians(-65),
-                                       'p3': m.radians(170), 'p4': m.radians(70)}
+        #self.pose_cross_arms_behind = {'p1': m.radians(40), 'p2': m.radians(-65),
+        #                               'p3': m.radians(170), 'p4': m.radians(70)}
 
-        self.pose_relaxed_arms_side = {'p1': m.radians(55), 'p2': m.radians(-60+30),
-                                       'p3': m.radians(90), 'p4': m.radians(70)}
+        #self.pose_relaxed_arms_side = {'p1': m.radians(55), 'p2': m.radians(-60),
+        #                               'p3': m.radians(90), 'p4': m.radians(70)}
 
-        self.pose_waiting_arms_side = {'p1': m.radians(50), 'p2': m.radians(-30),
-                                       'p3': m.radians(120), 'p4': m.radians(90),
-                                       'p5': m.radians(20), 'p6': m.radians(50)}
+        self.pose_boring_walk_back2 = {'p1': m.radians(55), 'p2': m.radians(-95),
+                                       'p3': m.radians(60), 'p4': m.radians(95),
+                                       'p5': m.radians(60), 'p6': m.radians(40)}
+
+        self.pose_boring_walk_front_back2_c1 = {'p1': 1.4, 'p2': -1.3,
+                                               'p3': 1.75, 'p4': 1.64,
+                                               'p5': 1.04, 'p6': 0.69}
+
+        self.pose_right_folded_back = {'p1': m.radians(-45), 'p2': m.radians(90),
+                                       'p3': m.radians(0), 'p4': m.radians(80),
+                                       'p5': m.radians(45), 'p6': m.radians(40)}
+
+
+        self.pose_folded_grip_right_c1_old = {'p1': m.radians(-14), 'p2': m.radians(90),
+                                          'p3': m.radians(63), 'p4': m.radians(85),
+                                          'p5': m.radians(14), 'p6': m.radians(12)}
+
+
+        self.pose_folded_grip_right_c1 = {'p1': m.radians(-57), 'p2': m.radians(96),
+                                          'p3': m.radians(-17), 'p4': m.radians(0),
+                                          'p5': m.radians(14), 'p6': m.radians(-90)}
+
+
+
+        self.pose_folded_grip_right_c2_old = {'p1': m.radians(-20), 'p2': m.radians(85),
+                                          'p3': m.radians(90), 'p4': m.radians(89),
+                                          'p5': m.radians(11), 'p6': m.radians(15)}
+
+
+        self.pose_folded_grip_right_c2 = {  'p1': m.radians(-86), 'p2': m.radians(80),
+                                          'p3': m.radians(-62), 'p4': m.radians(-115),
+                                          'p5': m.radians(0), 'p6': m.radians(0)}
+
+
+        self.pose_folded_grip_right_c3_old = {'p1': m.radians(-45), 'p2': m.radians(75),
+                                          'p3': m.radians(100), 'p4': m.radians(130),
+                                          'p5': m.radians(0), 'p6': m.radians(0)}
+
+        self.pose_folded_grip_right_c4_old = {'p1': m.radians(-135), 'p2': m.radians(65),
+                                          'p3': m.radians(100), 'p4': m.radians(130),
+                                          'p5': m.radians(0), 'p6': m.radians(0)}
+
+        self.pose_boring_walk_front2 = {'p1': m.radians(110), 'p2': m.radians(-75),
+                                       'p3': m.radians(147), 'p4': m.radians(90),
+                                       'p5': m.radians(60), 'p6': m.radians(40)}
+
+        self.pose_waiting_arms_side = {'p1': m.radians(45), 'p2': m.radians(-60),
+                                       'p3': m.radians(105), 'p4': m.radians(90),
+                                       'p5': m.radians(10), 'p6': m.radians(50)}
 
         self.pose_boring_walk_front = {'p1': m.radians(80), 'p2': m.radians(-60),
                                        'p3': m.radians(110), 'p4': m.radians(80)}
@@ -180,11 +227,11 @@ class ArmMovement(object):
         norm_front_cp1 = {'p1': m.radians(85),  'p2': m.radians(-54), 'p3': m.radians(130),  'p4': m.radians(74)}
         front_left =     {'p1': m.radians(120), 'p2': m.radians(-65), 'p3': m.radians(160),  'p4': m.radians(75)}
 
-        time_delta = 4
+        time_delta = 2
         jtp_list_left = list()
         #jtp_list_left.append(JTP(rel_time=8))
-        jtp_list_left.append(JTP(rel_time=4, **norm_left))
-        for i in range(1):
+        jtp_list_left.append(JTP(rel_time=6, **norm_left))
+        for i in range(4):
             jtp_list_left.append(JTP(rel_time=time_delta, **back_left))
             jtp_list_left.append(JTP(rel_time=time_delta, **norm_left))
             jtp_list_left.append(JTP(rel_time=time_delta, **norm_front_cp1))
@@ -194,14 +241,20 @@ class ArmMovement(object):
 
         return jtp_list_left, list()
 
-    def movePoseSplit(self, pose1, pose2, duration=4, times=1):
+    #todo: rename... nad/or recover old
+    def movePoseSplit(self, pose_list_left, pose_list_right, duration=4, times=1):
+        assert len(pose_list_left) == len(pose_list_right)
+
         jtp_list_left = list()
+        jtp_list_right = list()
 
         for i in range(times):
-            jtp_list_left.append(JTP(rel_time=duration, **pose1))
-            jtp_list_left.append(JTP(rel_time=duration, **pose2))
+            for idx in range(len(pose_list_left)):
+                jtp_list_left.append(JTP(rel_time=duration, **pose_list_left[idx]))
+                jtp_list_right.append(JTP(rel_time=duration, **pose_list_right[idx]))
 
-        jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_left[::-1])
+
+        jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_right)
 
         return jtp_list_left, jtp_list_right
 
@@ -219,10 +272,73 @@ if __name__=='__main__':
 
 
 
-        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_home, 6))
-        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_relaxed_arms_side, 6))
+        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_home, 8))
 
-        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_waiting_arms_side, 8))
+
+
+
+        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_relaxed_arms_side, 4))
+
+        ############################
+        # *** arme schlendern
+        ############################
+
+        '''
+        dotime = 4
+
+        JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_boring_walk_front_back2_c1, dotime))
+
+        pose_list_left = [am.pose_boring_walk_front_back2_c1, am.pose_boring_walk_front2,
+                          am.pose_boring_walk_front_back2_c1, am.pose_boring_walk_back2]
+
+        pose_list_right = [am.pose_boring_walk_front_back2_c1, am.pose_boring_walk_back2,
+                           am.pose_boring_walk_front_back2_c1, am.pose_boring_walk_front2]
+
+        JTP.extend_base_list(jtp_flow_data, *am.movePoseSplit(pose_list_left=pose_list_left, pose_list_right=pose_list_right,
+                                                              duration=2, times=8))
+
+
+        JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_boring_walk_front_back2_c1, dotime))
+        '''
+
+
+        ############################
+        # ~~~ arme schlendern
+        ############################
+
+
+        ####
+        # *** rose greifen
+        #
+
+        jtp_flow_data = [list(), list()]
+
+        dotime = 4
+
+
+
+        #jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_right_folded_back))
+
+        jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_folded_grip_right_c1))
+
+        jtp_flow_data[0].append(JTP.get_mirrored_jtp(JTP(rel_time=dotime, **am.pose_boring_walk_back2)))
+
+        #jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_folded_grip_right_c1))
+
+        #jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_right_folded_back))
+
+        ###
+        ### AB HIER HOCH ZUM TISCH....
+        ###
+
+
+
+
+        #
+        # ~~~ rose greifen
+        #######
+
+        #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_waiting_arms_side, 4))
         #JTP.extend_base_list(jtp_flow_data, *am.movePose(pose=am.pose_cross_arms_behind, duration=8))
 
 
@@ -263,9 +379,9 @@ if __name__=='__main__':
 
 
         JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_home, 4))
-        radians = m.radians(40)
+        radians = m.radians(90)
         basetime = 3
-        joint = 'p4'
+        joint = 'p3'
         while basetime >= 0.5:
             print basetime
             JTP.extend_base_list(jtp_flow_data, *am.movePose({joint: radians*-1}, basetime))
@@ -273,8 +389,8 @@ if __name__=='__main__':
             JTP.extend_base_list(jtp_flow_data, *am.movePose({joint: 0}, basetime))
             basetime /= 2.0
 
-        '''
 
+        '''
 
 
         #JTP.extend_base_list(jtp_flow_data, *am.movePose(am.pose_relaxed_arms_side, 3))
