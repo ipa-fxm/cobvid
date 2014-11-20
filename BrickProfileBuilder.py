@@ -24,6 +24,7 @@ from geometry_msgs.msg import Twist
 from control_msgs.msg import FollowJointTrajectoryAction
 from control_msgs.msg import FollowJointTrajectoryGoal
 from trajectory_msgs.msg import JointTrajectoryPoint
+from std_msgs.msg import Float64MultiArray
 
 # IMPORT FOR CALCULATIONS
 import numpy as np
@@ -216,48 +217,82 @@ class Plotter(object):
 
 class ROSBridge(object):
     class Dummy(object):
-        pass
+        def __init__(self, topic_name):
+            self.topic_name = topic_name
+
+        def publish(self, msg):
+            print '%s:   %s' % (self.topic_name, msg)
+
+
+        def send_jtp_list(self, jtp_list, is_left_arm=True):
+            print '%s_%s:   %s' % (self.topic_name, 'LEFT' if is_left_arm else 'RIGHT', jtp_list)
+            return 1
+
 
     def __init__(self, fakerun=False, exec_base=False, exec_arm_left=False, exec_arm_right=False):
         self.exec_base = exec_base
         self.exec_arm_left = exec_arm_left
         self.exec_arm_right = exec_arm_right
 
+        BASE_CONTROLLER_TOPIC = '/base_controller/command_direct'
+        ARM_LEFT_VELOCITY_TOPIC = ''
+        ARM_RIGHT_VELOCITY_TOPIC = ''
+
         if not fakerun:
             rospy.init_node('VID_TEST')
-            self.pub = rospy.Publisher('/base_controller/command_direct', Twist)
-        else:
-            self.pub = ROSBridge.Dummy()
-            self.pub.publish = self._print_fakerun
 
-    def _print_fakerun(self, msg):
-        print msg
-        print '-'*50
+        self.base_publisher = rospy.Publisher(BASE_CONTROLLER_TOPIC, Twist) \
+            if not fakerun and isLive and exec_base else ROSBridge.Dummy('BASE')
+
+        self.arm_left_velocity_publisher = rospy.Publisher(ARM_LEFT_VELOCITY_TOPIC, Float64MultiArray) \
+            if not fakerun and isLive and exec_arm_left else ROSBridge.Dummy('ARM_LEFT')
+
+        self.arm_right_velocity_publisher = rospy.Publisher(ARM_RIGHT_VELOCITY_TOPIC, Float64MultiArray) \
+            if not fakerun and isLive and exec_arm_right else ROSBridge.Dummy('ARM_RIGHT')
+
 
     def exec_timeline(self, timeline):
         timeline.syncTimeline()
+        leftGoalBlockTimeRemaining = 0
+        rightGoalBlockTimeRemaining = 0
         for step in range(timeline.get_max_length_from_timelines()):
             if self.exec_base:
                 twist = Twist()
                 twist.linear.x = timeline.TLX[step]
                 twist.linear.y = timeline.TLY[step]
                 twist.angular.z = timeline.TLTH[step]
-                self.pub.publish(twist)
+                self.base_publisher.publish(twist)
 
             if self.exec_arm_left or self.exec_arm_right:
-                st = SynchronousTrajectory()
+                if isLive:
+                    st = SynchronousTrajectory()
+                else:
+                    st = ROSBridge.Dummy('ARM_GOAL')
 
                 if self.exec_arm_left:
-                    if timeline.ARML[step] is not None:
-                        print 'LEFT', timeline.ARML[step]
-                        st.send_jtp_list(timeline.ARML[step], is_left_arm=True)
+                    if timeline.ARML_GOAL[step] is not None:
+                        leftGoalBlockTimeRemaining = st.send_jtp_list(timeline.ARML_GOAL[step], is_left_arm=True)
+
+                    if leftGoalBlockTimeRemaining <= 0:
+                        msg = Float64MultiArray(data=timeline.ARML_VEL[step])
+                        self.arm_left_velocity_publisher.publish(msg)
 
                 if self.exec_arm_right:
-                    if timeline.ARMR[step] is not None:
-                        print 'RIGHT', timeline.ARMR[step]
-                        st.send_jtp_list(timeline.ARMR[step], is_left_arm=False)
+                    if timeline.ARMR_GOAL[step] is not None:
+                        rightGoalBlockTimeRemaining = st.send_jtp_list(timeline.ARMR_GOAL[step], is_left_arm=False)
+
+                    if rightGoalBlockTimeRemaining <= 0:
+                        msg = Float64MultiArray(data=timeline.ARML_VEL[step])
+                        self.arm_right_velocity_publisher.publish(msg)
+
+            if not isLive:
+                print '-'*50
+
+            leftGoalBlockTimeRemaining -= timeline.profile.sample_time
+            rightGoalBlockTimeRemaining -= timeline.profile.sample_time
 
             time.sleep(timeline.profile.sample_time)
+
 
 
 class Profile(object):
@@ -274,11 +309,13 @@ class Profile(object):
 class Timeline(object):
     def __init__(self, profile):
         self.profile = profile
-        self.TLX = np.array([], np.float)
-        self.TLY = np.array([], np.float)
-        self.TLTH = np.array([], np.float)
-        self.ARML = list()
-        self.ARMR = list()
+        self.TLX = np.array([], np.float64)
+        self.TLY = np.array([], np.float64)
+        self.TLTH = np.array([], np.float64)
+        self.ARML_GOAL = list()
+        self.ARMR_GOAL = list()
+        self.ARML_VEL = np.array([], np.float64)
+        self.ARMR_VEL = np.array([], np.float64)
         self.SECTIONS = list()
 
     def appendX(self, data):
@@ -296,14 +333,14 @@ class Timeline(object):
         self.appendArmRight(arm_right_data=arm_right_data)
 
     def appendArmLeft(self, arm_left_data):
-        self.ARML.append(arm_left_data)
+        self.ARML_GOAL.append(arm_left_data)
 
     def appendArmRight(self, arm_right_data):
-        self.ARMR.append(arm_right_data)
+        self.ARMR_GOAL.append(arm_right_data)
 
     def syncTimeline(self):
-        self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float], self.TLX, self.TLY, self.TLTH)
-        self.ARML, self.ARMR = self._evenMaxSamples(self._generatePythonList, [None], self.ARML, self.ARMR)
+        self.TLX, self.TLY, self.TLTH, self.ARML_VEL, self.ARMR_VEL = self._evenMaxSamples(np.zeros, [np.float64], self.TLX, self.TLY, self.TLTH, self.ARML_VEL, self.ARMR_VEL)
+        self.ARML_GOAL, self.ARMR_GOAL = self._evenMaxSamples(self._generatePythonList, [None], self.ARML_GOAL, self.ARMR_GOAL)
 
     def _generatePythonList(self, max_samples, *args):
         return list(args)*max_samples
@@ -323,11 +360,11 @@ class Timeline(object):
         return args
 
     def get_max_length_from_timelines(self):
-        timelines = [self.TLX, self.TLY, self.TLTH, self.ARML, self.ARMR]
+        timelines = [self.TLX, self.TLY, self.TLTH, self.ARML_GOAL, self.ARMR_GOAL, self.ARML_VEL, self.ARMR_VEL]
         return max(map(len, timelines))
 
     def __len__(self):
-        return max(map(len, [self.TLX, self.TLY, self.TLTH]))
+        return self.get_max_length_from_timelines()
 
     def new_section(self, name='', sync_timelines=True):
         if sync_timelines:
