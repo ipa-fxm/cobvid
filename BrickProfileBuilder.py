@@ -25,6 +25,7 @@ from control_msgs.msg import FollowJointTrajectoryAction
 from control_msgs.msg import FollowJointTrajectoryGoal
 from trajectory_msgs.msg import JointTrajectoryPoint
 from std_msgs.msg import Float64MultiArray
+from actionlib_msgs.msg import GoalStatus
 
 # IMPORT FOR CALCULATIONS
 import numpy as np
@@ -35,6 +36,8 @@ from scipy.misc import comb
 # PYTHON IMPORTS
 import time
 import sys
+import string
+
 
 class Plotter(object):
     def __init__(self, timeline, plot_profile=False, plot_map=False):
@@ -223,7 +226,6 @@ class ROSBridge(object):
         def publish(self, msg):
             print '%s:   %s' % (self.topic_name, msg)
 
-
         def send_jtp_list(self, jtp_list, is_left_arm=True):
             print '%s_%s:   %s' % (self.topic_name, 'LEFT' if is_left_arm else 'RIGHT', jtp_list)
             return 1
@@ -235,8 +237,8 @@ class ROSBridge(object):
         self.exec_arm_right = exec_arm_right
 
         BASE_CONTROLLER_TOPIC = '/base_controller/command_direct'
-        ARM_LEFT_VELOCITY_TOPIC = ''
-        ARM_RIGHT_VELOCITY_TOPIC = ''
+        ARM_LEFT_VELOCITY_TOPIC = '/arm_left/joint_group_velocity_controller/command'
+        ARM_RIGHT_VELOCITY_TOPIC = '/arm_right/joint_group_velocity_controller/command'
 
         if not fakerun:
             rospy.init_node('VID_TEST')
@@ -250,11 +252,36 @@ class ROSBridge(object):
         self.arm_right_velocity_publisher = rospy.Publisher(ARM_RIGHT_VELOCITY_TOPIC, Float64MultiArray) \
             if not fakerun and isLive and exec_arm_right else ROSBridge.Dummy('ARM_RIGHT')
 
+    def _exec_arm(self, timeline, arm_goal_timeline, arm_velocity_timeline, is_left_arm, step, synchronous_trajectory, publisher):
+        if arm_goal_timeline[step] is not None:
+            synchronous_trajectory.send_jtp_list(timeline.ARML_GOAL[step], is_left_arm=is_left_arm)
+
+
+
+        if arm_velocity_timeline[step][7]:
+            msg = Float64MultiArray(data=arm_velocity_timeline[step][0:7])
+            publisher.publish(msg)
+
+    def block_arm_velocity_timeline_for_goals(self, timeline, arm_goal_timeline, arm_velocity_timeline):
+        for idx, jtp_list in enumerate(arm_goal_timeline):
+            if jtp_list:
+                goal_duration = JTP.get_total_time_duration(jtp_list)
+                timeoutSamples = int(timeline.calc_samples(timeline.SWITCH_VEL_TO_GOAL_TIMEOUT))
+                blockedSamples = int(timeline.calc_samples(goal_duration))
+                arm_velocity_timeline[idx-timeoutSamples:idx+blockedSamples, 7] = 0
+
 
     def exec_timeline(self, timeline):
         timeline.syncTimeline()
         leftGoalBlockTimeRemaining = 0
         rightGoalBlockTimeRemaining = 0
+
+        self.block_arm_velocity_timeline_for_goals(timeline=timeline, arm_goal_timeline=timeline.ARML_GOAL,
+                                                   arm_velocity_timeline=timeline.ARML_VEL)
+
+        self.block_arm_velocity_timeline_for_goals(timeline=timeline, arm_goal_timeline=timeline.ARMR_GOAL,
+                                                   arm_velocity_timeline=timeline.ARMR_VEL)
+
         for step in range(timeline.get_max_length_from_timelines()):
             if self.exec_base:
                 twist = Twist()
@@ -265,33 +292,31 @@ class ROSBridge(object):
 
             if self.exec_arm_left or self.exec_arm_right:
                 if isLive:
-                    st = SynchronousTrajectory()
+                    st = SynchronousTrajectory(init_arm_left=self.exec_arm_left, init_arm_right=self.exec_arm_right)
                 else:
                     st = ROSBridge.Dummy('ARM_GOAL')
 
                 if self.exec_arm_left:
-                    if timeline.ARML_GOAL[step] is not None:
-                        leftGoalBlockTimeRemaining = st.send_jtp_list(timeline.ARML_GOAL[step], is_left_arm=True)
-
-                    if leftGoalBlockTimeRemaining <= 0:
-                        msg = Float64MultiArray(data=timeline.ARML_VEL[step])
-                        self.arm_left_velocity_publisher.publish(msg)
+                    self._exec_arm(timeline=timeline, arm_goal_timeline=timeline.ARML_GOAL,
+                                   arm_velocity_timeline=timeline.ARML_VEL, is_left_arm=True, step=step,
+                                   synchronous_trajectory=st, publisher=self.arm_left_velocity_publisher)
 
                 if self.exec_arm_right:
-                    if timeline.ARMR_GOAL[step] is not None:
-                        rightGoalBlockTimeRemaining = st.send_jtp_list(timeline.ARMR_GOAL[step], is_left_arm=False)
-
-                    if rightGoalBlockTimeRemaining <= 0:
-                        msg = Float64MultiArray(data=timeline.ARML_VEL[step])
-                        self.arm_right_velocity_publisher.publish(msg)
+                    self._exec_arm(timeline=timeline, arm_goal_timeline=timeline.ARMR_GOAL,
+                                   arm_velocity_timeline=timeline.ARMR_VEL, is_left_arm=False, step=step,
+                                   synchronous_trajectory=st, publisher=self.arm_right_velocity_publisher)
 
             if not isLive:
                 print '-'*50
 
+            #if leftGoalBlockTimeRemaining is None:
+            #    leftGoalBlockTimeRemaining = 0
             leftGoalBlockTimeRemaining -= timeline.profile.sample_time
+            #if rightGoalBlockTimeRemaining is None:
+            #    rightGoalBlockTimeRemaining = 0
             rightGoalBlockTimeRemaining -= timeline.profile.sample_time
 
-            time.sleep(timeline.profile.sample_time)
+            rospy.sleep(timeline.profile.sample_time)
 
 
 
@@ -308,14 +333,15 @@ class Profile(object):
 
 class Timeline(object):
     def __init__(self, profile):
+        self.SWITCH_VEL_TO_GOAL_TIMEOUT = 0.1
         self.profile = profile
         self.TLX = np.array([], np.float64)
         self.TLY = np.array([], np.float64)
         self.TLTH = np.array([], np.float64)
         self.ARML_GOAL = list()
         self.ARMR_GOAL = list()
-        self.ARML_VEL = np.array([], np.float64)
-        self.ARMR_VEL = np.array([], np.float64)
+        self.ARML_VEL = np.ndarray((0, 8), np.float64)
+        self.ARMR_VEL = np.ndarray((0, 8), np.float64)
         self.SECTIONS = list()
 
     def appendX(self, data):
@@ -333,27 +359,31 @@ class Timeline(object):
         self.appendArmRight(arm_right_data=arm_right_data)
 
     def appendArmLeft(self, arm_left_data):
+        print len(self.ARML_VEL)
+        print len(self.ARML_GOAL)
         self.ARML_GOAL.append(arm_left_data)
 
     def appendArmRight(self, arm_right_data):
         self.ARMR_GOAL.append(arm_right_data)
 
     def syncTimeline(self):
-        self.TLX, self.TLY, self.TLTH, self.ARML_VEL, self.ARMR_VEL = self._evenMaxSamples(np.zeros, [np.float64], self.TLX, self.TLY, self.TLTH, self.ARML_VEL, self.ARMR_VEL)
-        self.ARML_GOAL, self.ARMR_GOAL = self._evenMaxSamples(self._generatePythonList, [None], self.ARML_GOAL, self.ARMR_GOAL)
+        self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float64], 0, self.TLX, self.TLY, self.TLTH)
+        self.ARML_VEL, self.ARMR_VEL = self._evenMaxSamples(np.zeros, [np.float64], 8, self.ARML_VEL, self.ARMR_VEL)
+        self.ARML_GOAL, self.ARMR_GOAL = self._evenMaxSamples(self._generatePythonList, [None], 0, self.ARML_GOAL, self.ARMR_GOAL)
 
     def _generatePythonList(self, max_samples, *args):
         return list(args)*max_samples
 
-    def _evenMaxSamples(self, list_generator, list_generator_args, *args):
+    def _evenMaxSamples(self, list_generator, list_generator_args, data_array_size, *args):
         args = list(args)
         max_samples = self.get_max_length_from_timelines()
         for idx, sample_line in enumerate(args):
             remaining_samples = max_samples - len(sample_line)
-            fill_data = list_generator((remaining_samples), *list_generator_args)
+            shape = (remaining_samples, data_array_size) if data_array_size > 0 else (remaining_samples)
+            fill_data = list_generator(shape, *list_generator_args)
 
             if isinstance(args[idx], np.ndarray):
-                args[idx] = np.append(sample_line, fill_data)
+                args[idx] = np.append(sample_line, fill_data, axis=0)
             elif isinstance(args[idx], list):
                 args[idx].extend(fill_data)
 
@@ -532,21 +562,11 @@ class SynchronousTrajectory():
         self.init_arm_left = init_arm_left
         self.init_arm_right = init_arm_right
 
-        NODENAME = 'arm_traj_action'
         ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/arm_left/joint_trajectory_controller/follow_joint_trajectory'
         ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/arm_right/joint_trajectory_controller/follow_joint_trajectory'
 
-        rospy.init_node(NODENAME)
-        r = rospy.Rate(ros_rate)
+        self.goal_status_dict = self._resolve_goal_stats_codes()
 
-        for i in range(30):
-            if '/' + NODENAME in rosnode.get_node_names():
-                break
-            print 'establishing node...'
-            rospy.sleep(0.1)
-        else:
-            print 'timout reached, node creation failed. exiting application'
-            exit()
 
         if init_arm_left:
             self.action_client_left = actionlib.SimpleActionClient(ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
@@ -557,6 +577,13 @@ class SynchronousTrajectory():
             self.action_client_right = actionlib.SimpleActionClient(ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
             if not self.action_client_right.wait_for_server(timeout=rospy.Duration(timeout)):
                 print '!!! CAN NOT INITIALIZE RIGHT ARM !!!'
+
+    def _resolve_goal_stats_codes(self):
+        CODENAMES = [code for code in dir(GoalStatus) if not code.startswith('_') and code[0] in string.ascii_uppercase]
+        CODENUMS = map(getattr, [GoalStatus] * len(CODENAMES), CODENAMES)
+        goal_status_dict = dict()
+        map(lambda num, name: goal_status_dict.update({num:name}) ,CODENUMS, CODENAMES)
+        return goal_status_dict
 
 
     def get_joint_names(self, is_left_arm=True):
@@ -570,21 +597,46 @@ class SynchronousTrajectory():
         return JTP.get_total_time_duration(jtp_list_left, jtp_list_right)
 
     def send_jtp_list(self, jtp_list, is_left_arm=True):
+        if is_left_arm and not self.init_arm_left:
+            return
+
+        if not is_left_arm and not self.init_arm_right:
+            return
+
         print 'Sending following JTP-Points to %s arm:' % ('left' if is_left_arm else 'right')
         for jtp in jtp_list:
             print jtp
+
         action_client = self.action_client_left if is_left_arm else self.action_client_right
         goal = FollowJointTrajectoryGoal()
         goal.trajectory.joint_names = self.get_joint_names(is_left_arm)
         goal.trajectory.points = JTP.get_point_list(jtp_list)
-        action_client.send_goal(goal)
-        rospy.sleep(0.05)
+        action_client.send_goal(goal=goal)
+        #rospy.sleep(0.05)
         return JTP.get_total_time_duration(jtp_list)
 
+    def callback_left_goal_done(self, status_code, _):
+        print 'DONE CALLBACK', '#'*200
+        print self.goal_status_dict[status_code]
+        print '#'*200
+
+    def cb_active(self, *args, **kwargs):
+        print 'ACTIVE CALLBACK', '*'*200
+        print args, kwargs
+        print '*'*200
+
+    def cb_feedback(self, *args, **kwargs):
+        print 'FEEDBACK CALLBACK', '~'*200
+        print args, kwargs
+        print '~'*200
 
 class ArmMovement(object):
     pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
-                          'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
+                 'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
+
+    pose_boring_walk_back = {'p1': np.radians(55), 'p2': np.radians(-95),
+                              'p3': np.radians(60), 'p4': np.radians(95),
+                              'p5': np.radians(60), 'p6': np.radians(40)}
 
 
     def __init__(self, profile):
@@ -599,10 +651,6 @@ class ArmMovement(object):
         #self.pose_relaxed_arms_side = {'p1': np.radians(55), 'p2': np.radians(-60),
         #                               'p3': np.radians(90), 'p4': np.radians(70)}
 
-
-        self.pose_boring_walk_back2 = {'p1': np.radians(55), 'p2': np.radians(-95),
-                                       'p3': np.radians(60), 'p4': np.radians(95),
-                                       'p5': np.radians(60), 'p6': np.radians(40)}
 
         self.pose_boring_walk_front_back2_c1 = {'p1': 1.4, 'p2': -1.3,
                                                'p3': 1.75, 'p4': 1.64,
@@ -788,9 +836,9 @@ class BaseScene(Timeline, Bricks, Bezier, ArmMovement):
             super(BaseScene, self).__init__(profile)
 
 
-class TestingStuff(BaseScene):
+class StuffToTest(BaseScene):
     def __init__(self, profile):
-            super(TestingStuff, self).__init__(profile)
+            super(StuffToTest, self).__init__(profile)
 
 
     def test_map(self):
@@ -888,7 +936,28 @@ class TestingStuff(BaseScene):
         self.appendX(self.lin_acc(velocity_start=speed, velocity_lin=speed, velocity_end=0, acc_percentage=0, dec_percentage=0.4, duration=1.5))
 
     def test_arms(self):
-        self.appendArms(self.movePose(duration=8, pose=self.pose_home))
+        doTime = 4
+        self.appendArms(self.movePose(duration=doTime, pose=self.pose_home))
+        self.appendX(self.lin(0, doTime))
+
+        self.syncTimeline()
+
+        sin = self.sin(0, np.pi*2, 2)
+        zer = np.zeros((len(sin), 8), np.float64)
+        zer[..., 2] = sin
+        zer[..., 7] = 1
+        self.ARML_VEL = np.append(self.ARML_VEL, zer, axis=0)
+
+        #self.syncTimeline()
+
+        #self.appendX(self.lin(0, self.SWITCH_VEL_TO_GOAL_TIMEOUT))
+
+        self.syncTimeline()
+
+        self.appendArms(self.movePose(duration=doTime, pose=self.pose_boring_walk_back))
+
+        self.appendX(self.lin(0, doTime+3))
+
         self.syncTimeline()
         #self.appendArms(*JTP.extend_base_list(None, *self.pose_home))
 
@@ -1000,7 +1069,7 @@ if __name__ == '__main__':
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074)
 
     boring = BoringWindowScene(profile=cob3_3_profile)
-    test = TestingStuff(profile=cob3_3_profile)
+    test = StuffToTest(profile=cob3_3_profile)
 
 
     #test.test_map()
@@ -1032,7 +1101,6 @@ if __name__ == '__main__':
     ###########################
     if is_plot:
         Plotter(masterTimeline, plot_profile=plot_profile, plot_map=plot_map)
-
 
     if is_ros:
         bridge = ROSBridge(fakerun=is_fakerun,
