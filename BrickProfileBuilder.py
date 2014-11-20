@@ -218,7 +218,11 @@ class ROSBridge(object):
     class Dummy(object):
         pass
 
-    def __init__(self, fakerun=False):
+    def __init__(self, fakerun=False, exec_base=False, exec_arm_left=False, exec_arm_right=False):
+        self.exec_base = exec_base
+        self.exec_arm_left = exec_arm_left
+        self.exec_arm_right = exec_arm_right
+
         if not fakerun:
             rospy.init_node('VID_TEST')
             self.pub = rospy.Publisher('/base_controller/command_direct', Twist)
@@ -232,16 +236,24 @@ class ROSBridge(object):
 
     def exec_timeline(self, timeline):
         timeline.syncTimeline()
-        for step in range(max([len(timeline.TLX), len(timeline.TLY), len(timeline.TLTH)])):
-            twist = Twist()
-            if step < len(timeline.TLX):
+        for step in range(timeline.get_max_length_from_timelines()):
+            if self.exec_base:
+                twist = Twist()
                 twist.linear.x = timeline.TLX[step]
-            if step < len(timeline.TLY):
                 twist.linear.y = timeline.TLY[step]
-            if step < len(timeline.TLTH):
                 twist.angular.z = timeline.TLTH[step]
+                self.pub.publish(twist)
 
-            self.pub.publish(twist)
+            if self.exec_arm_left:
+                # TODO: implement logic
+                if timeline.ARML[step] is not None:
+                    print timeline.ARML[step]
+
+            if self.exec_arm_right:
+                # TODO: implement logic
+                if timeline.ARMR[step] is not None:
+                    print timeline.ARMR[step]
+
             time.sleep(timeline.profile.sample_time)
 
 
@@ -262,6 +274,8 @@ class Timeline(object):
         self.TLX = np.array([], np.float)
         self.TLY = np.array([], np.float)
         self.TLTH = np.array([], np.float)
+        self.ARML = list()
+        self.ARMR = list()
         self.SECTIONS = list()
 
     def appendX(self, data):
@@ -274,16 +288,29 @@ class Timeline(object):
         self.TLTH = np.append(self.TLTH, data)
 
     def syncTimeline(self):
-        self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(self.TLX, self.TLY, self.TLTH)
+        self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float], self.TLX, self.TLY, self.TLTH)
+        self.ARML, self.ARMR = self._evenMaxSamples(self._generatePythonList, [None], self.ARML, self.ARMR)
 
-    def _evenMaxSamples(self, *args):
+    def _generatePythonList(self, max_samples, *args):
+        return list(args)*max_samples
+
+    def _evenMaxSamples(self, list_generator, list_generator_args, *args):
         args = list(args)
-        max_samples = max(map(len, args))
+        max_samples = self.get_max_length_from_timelines()
         for idx, sample_line in enumerate(args):
             remaining_samples = max_samples - len(sample_line)
-            fill_data = np.zeros((remaining_samples), np.float)
-            args[idx] = np.append(sample_line, fill_data)
+            fill_data = list_generator((remaining_samples), *list_generator_args)
+
+            if isinstance(args[idx], np.ndarray):
+                args[idx] = np.append(sample_line, fill_data)
+            elif isinstance(args[idx], list):
+                args[idx].extend(fill_data)
+
         return args
+
+    def get_max_length_from_timelines(self):
+        timelines = [self.TLX, self.TLY, self.TLTH, self.ARML, self.ARMR]
+        return max(map(len, timelines))
 
     def __len__(self):
         return max(map(len, [self.TLX, self.TLY, self.TLTH]))
@@ -298,6 +325,7 @@ class Timeline(object):
         self.appendX(self.TLX[::-1]*-1)
         self.appendY(self.TLY[::-1]*-1)
         self.appendTH(self.TLTH[::-1]*-1)
+
 
 class Bezier(object):
     def __init__(self, profile):
@@ -855,14 +883,34 @@ class BoringMovement(Timeline, Bricks, Bezier, ArmMovement):
 
 if __name__ == '__main__':
 
+    # PARSING STARTUP ARGUMENTS
+    ############################
+
     is_fakerun = '-fakerun' in sys.argv
+
     is_plot = '-plot' in sys.argv
     if is_plot:
         idx = sys.argv.index('-plot') + 1
         plot_map = 'map' in sys.argv[idx:idx+2]
         plot_profile = 'profile' in sys.argv[idx:idx+2]
-    is_ros = '-base' in sys.argv
-    is_arm = '-arm' in sys.argv
+    else:
+        plot_map = False
+        plot_profile = False
+
+    is_ros = '-ros' in sys.argv
+    if is_ros:
+        idx = sys.argv.index('-ros') + 1
+        is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+3]
+        is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+3]
+        is_ros_base = 'base' in sys.argv[idx:idx+3]
+    else:
+        is_ros_arm_left = False
+        is_ros_arm_right = False
+        is_ros_base = False
+
+
+    # CREATE STD STUFF
+    ###################
 
     cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074)
@@ -874,11 +922,11 @@ if __name__ == '__main__':
     #boring.test_speed_circula_path()
 
     #boring.to_window()
-    #boring.away_from_window()
+    boring.away_from_window()
 
     #boring.test_rotmove_side_drive()
 
-    boring.testBezier()
+    #boring.testBezier()
 
 
 
@@ -886,9 +934,16 @@ if __name__ == '__main__':
     #boring.appendReversePath()
 
 
-    if is_ros:
-        bridge = ROSBridge(fakerun=is_fakerun)
-        bridge.exec_timeline(boring)
-
+    # EXECUTE / PLOT TIMELINES
+    ###########################
     if is_plot:
         Plotter(boring, plot_profile=plot_profile, plot_map=plot_map)
+
+
+    if is_ros:
+        bridge = ROSBridge(fakerun=is_fakerun,
+                           exec_base=is_ros_base,
+                           exec_arm_left=is_ros_arm_left,
+                           exec_arm_right=is_ros_arm_right)
+
+        bridge.exec_timeline(boring)
