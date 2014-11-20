@@ -244,15 +244,18 @@ class ROSBridge(object):
                 twist.angular.z = timeline.TLTH[step]
                 self.pub.publish(twist)
 
-            if self.exec_arm_left:
-                # TODO: implement logic
-                if timeline.ARML[step] is not None:
-                    print timeline.ARML[step]
+            if self.exec_arm_left or self.exec_arm_right:
+                st = SynchronousTrajectory()
 
-            if self.exec_arm_right:
-                # TODO: implement logic
-                if timeline.ARMR[step] is not None:
-                    print timeline.ARMR[step]
+                if self.exec_arm_left:
+                    if timeline.ARML[step] is not None:
+                        print 'LEFT', timeline.ARML[step]
+                        st.send_jtp_list(timeline.ARML[step], is_left_arm=True)
+
+                if self.exec_arm_right:
+                    if timeline.ARMR[step] is not None:
+                        print 'RIGHT', timeline.ARMR[step]
+                        st.send_jtp_list(timeline.ARMR[step], is_left_arm=False)
 
             time.sleep(timeline.profile.sample_time)
 
@@ -286,6 +289,17 @@ class Timeline(object):
 
     def appendTH(self, data):
         self.TLTH = np.append(self.TLTH, data)
+
+    def appendArms(self, arm_data):
+        arm_left_data, arm_right_data = arm_data
+        self.appendArmLeft(arm_left_data=arm_left_data)
+        self.appendArmRight(arm_right_data=arm_right_data)
+
+    def appendArmLeft(self, arm_left_data):
+        self.ARML.append(arm_left_data)
+
+    def appendArmRight(self, arm_right_data):
+        self.ARMR.append(arm_right_data)
 
     def syncTimeline(self):
         self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float], self.TLX, self.TLY, self.TLTH)
@@ -477,8 +491,14 @@ class JTP(object):
 
 
 class SynchronousTrajectory():
-    def __init__(self, ros_rate=10):
+    def __init__(self, ros_rate=10, init_arm_left=False, init_arm_right=False, timeout=5):
+        self.init_arm_left = init_arm_left
+        self.init_arm_right = init_arm_right
+
         NODENAME = 'arm_traj_action'
+        ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/arm_left/joint_trajectory_controller/follow_joint_trajectory'
+        ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/arm_right/joint_trajectory_controller/follow_joint_trajectory'
+
         rospy.init_node(NODENAME)
         r = rospy.Rate(ros_rate)
 
@@ -491,10 +511,16 @@ class SynchronousTrajectory():
             print 'timout reached, node creation failed. exiting application'
             exit()
 
-        self.action_client_left = actionlib.SimpleActionClient('/arm_left/joint_trajectory_controller/follow_joint_trajectory', FollowJointTrajectoryAction)
-        self.action_client_right = actionlib.SimpleActionClient('/arm_right/joint_trajectory_controller/follow_joint_trajectory', FollowJointTrajectoryAction)
-        print self.action_client_left.wait_for_server(timeout=rospy.Duration(2))
-        print self.action_client_right.wait_for_server(timeout=rospy.Duration(2))
+        if init_arm_left:
+            self.action_client_left = actionlib.SimpleActionClient(ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
+            if not self.action_client_left.wait_for_server(timeout=rospy.Duration(timeout)):
+                print '!!! CAN NOT INITIALIZE LEFT ARM !!!'
+
+        if init_arm_right:
+            self.action_client_right = actionlib.SimpleActionClient(ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
+            if not self.action_client_right.wait_for_server(timeout=rospy.Duration(timeout)):
+                print '!!! CAN NOT INITIALIZE RIGHT ARM !!!'
+
 
     def get_joint_names(self, is_left_arm=True):
         joint_name_pattern = ['arm_%s_%d_joint']*7
@@ -520,6 +546,10 @@ class SynchronousTrajectory():
 
 
 class ArmMovement(object):
+    pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
+                          'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
+
+
     def __init__(self, profile):
         self.profile = profile
 
@@ -716,9 +746,15 @@ class Bricks(object):
 
         return tlx, tly, tlth
 
-class BoringMovement(Timeline, Bricks, Bezier, ArmMovement):
+class BaseScene(Timeline, Bricks, Bezier, ArmMovement):
     def __init__(self, profile):
-        super(BoringMovement, self).__init__(profile)
+            super(BaseScene, self).__init__(profile)
+
+
+class TestingStuff(BaseScene):
+    def __init__(self, profile):
+            super(TestingStuff, self).__init__(profile)
+
 
     def test_map(self):
         self.new_section('90 Grad Y')
@@ -787,6 +823,61 @@ class BoringMovement(Timeline, Bricks, Bezier, ArmMovement):
         self.syncTimeline()
 
 
+    def test_rotmove_side_drive(self):
+        speed = 0.5
+        phi = np.pi / 2
+
+        self.new_section('speed up')
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=speed, velocity_end=speed, acc_percentage=0.4, dec_percentage=0, duration=1.5))
+
+
+        self.new_section('rotate 1')
+        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=speed, velocity_start_y=0, phi=phi, duration=3.5)
+        self.appendX(tlx)
+        self.appendY(tly)
+        self.appendTH(tlth)
+
+        self.appendY(self.lin(-speed, 1))
+
+        self.new_section('rot back')
+        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=0, velocity_start_y=-speed, phi=-phi, duration=3.5)
+        self.appendX(tlx)
+        self.appendY(tly)
+        self.appendTH(tlth)
+
+
+
+        self.new_section('speed down')
+        self.appendX(self.lin_acc(velocity_start=speed, velocity_lin=speed, velocity_end=0, acc_percentage=0, dec_percentage=0.4, duration=1.5))
+
+    def test_arms(self):
+        self.appendArms(self.movePose(duration=8, pose=self.pose_home))
+        self.syncTimeline()
+        #self.appendArms(*JTP.extend_base_list(None, *self.pose_home))
+
+    def testBezier(self):
+        points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
+                           [1, -1], [1, -1], [1, -1], [2, -1], [3, -1], [3, -1], [3, -1], [3, 0],
+                           [2.5, 0.5], [2, 1], [1.5, 1], [0.5, 1], [-0.5, 1], [-0.5, 0], [-0.5, -1], [0.5, -1], ]
+        points = [[0,0], [0,1], [1,1]]
+
+
+
+        x, th = self.createBezier(points, duration=8)
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=x[0], duration=1))
+        self.syncTimeline()
+
+        self.appendX(x)
+        self.appendTH(th)
+
+        self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
+
+class BoringWindowScene(BaseScene):
+    def __init__(self, profile):
+        super(BoringWindowScene, self).__init__(profile)
+
+
     def to_window(self):
         self.appendX(self.lin(duration=2, velocity=0))
         self.syncTimeline()
@@ -821,6 +912,7 @@ class BoringMovement(Timeline, Bricks, Bezier, ArmMovement):
         self.appendX(self.lin(duration=1, velocity=0))
         self.syncTimeline()
 
+        self.appendArms()
 
     def away_from_window(self):
 
@@ -835,51 +927,6 @@ class BoringMovement(Timeline, Bricks, Bezier, ArmMovement):
         self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=5.5))
 
         self.syncTimeline()
-
-    def test_rotmove_side_drive(self):
-        speed = 0.5
-        phi = np.pi / 2
-
-        self.new_section('speed up')
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=speed, velocity_end=speed, acc_percentage=0.4, dec_percentage=0, duration=1.5))
-
-
-        self.new_section('rotate 1')
-        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=speed, velocity_start_y=0, phi=phi, duration=3.5)
-        self.appendX(tlx)
-        self.appendY(tly)
-        self.appendTH(tlth)
-
-        self.appendY(self.lin(-speed, 1))
-
-        self.new_section('rot back')
-        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=0, velocity_start_y=-speed, phi=-phi, duration=3.5)
-        self.appendX(tlx)
-        self.appendY(tly)
-        self.appendTH(tlth)
-
-
-
-        self.new_section('speed down')
-        self.appendX(self.lin_acc(velocity_start=speed, velocity_lin=speed, velocity_end=0, acc_percentage=0, dec_percentage=0.4, duration=1.5))
-
-    def testBezier(self):
-        points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
-                           [1, -1], [1, -1], [1, -1], [2, -1], [3, -1], [3, -1], [3, -1], [3, 0],
-                           [2.5, 0.5], [2, 1], [1.5, 1], [0.5, 1], [-0.5, 1], [-0.5, 0], [-0.5, -1], [0.5, -1], ]
-        points = [[0,0], [0,1], [1,1]]
-
-
-
-        x, th = self.createBezier(points, duration=8)
-
-        self.appendX(self.acc(velocity_start=0, velocity_end=x[0], duration=1))
-        self.syncTimeline()
-
-        self.appendX(x)
-        self.appendTH(th)
-
-        self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
 
 if __name__ == '__main__':
 
@@ -914,30 +961,40 @@ if __name__ == '__main__':
 
     cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074)
-    boring = BoringMovement(profile=cob3_3_profile)
 
-    #boring.test_map()
-    #boring.test_speed_linear()
-    #boring.test_speed_angular()
-    #boring.test_speed_circula_path()
+    boring = BoringWindowScene(profile=cob3_3_profile)
+    test = TestingStuff(profile=cob3_3_profile)
+
+
+    #test.test_map()
+    #test.test_speed_linear()
+    #test.test_speed_angular()
+    #test.test_speed_circula_path()
 
     #boring.to_window()
-    boring.away_from_window()
+    #boring.away_from_window()
+    test.test_arms()
 
-    #boring.test_rotmove_side_drive()
+    #test.test_rotmove_side_drive()
 
-    #boring.testBezier()
-
-
+    #test.testBezier()
 
 
     #boring.appendReversePath()
+    #test.appendReversePath()
+
+
+
+    # SETTING MASTER TIMELINE
+    ##########################
+
+    masterTimeline = test
 
 
     # EXECUTE / PLOT TIMELINES
     ###########################
     if is_plot:
-        Plotter(boring, plot_profile=plot_profile, plot_map=plot_map)
+        Plotter(masterTimeline, plot_profile=plot_profile, plot_map=plot_map)
 
 
     if is_ros:
@@ -946,4 +1003,4 @@ if __name__ == '__main__':
                            exec_arm_left=is_ros_arm_left,
                            exec_arm_right=is_ros_arm_right)
 
-        bridge.exec_timeline(boring)
+        bridge.exec_timeline(masterTimeline)
