@@ -309,7 +309,7 @@ class ROSBridge(object):
                 blockedSamples = int(timeline.calc_samples(goal_duration))
                 arm_velocity_timeline[idx-timeoutSamples:idx+blockedSamples, 7] = 0
 
-                
+
                 data_loss = arm_velocity_timeline[idx-timeoutSamples:idx+blockedSamples] != 0
                 is_data_loss = bool(data_loss.sum())
 
@@ -686,7 +686,7 @@ class ArmMovement(object):
     pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
                  'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
-    pose_boring_walk_back = {'p1': np.radians(55), 'p2': np.radians(-95),
+    pose_boring_walk_back = {'p1': np.radians(-55), 'p2': np.radians(-95),
                               'p3': np.radians(60), 'p4': np.radians(95),
                               'p5': np.radians(60), 'p6': np.radians(40)}
 
@@ -697,14 +697,14 @@ class ArmMovement(object):
         self.pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
                           'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
-        #self.pose_cross_arms_behind = {'p1': np.radians(40), 'p2': np.radians(-65),
+        #self.pose_cross_arms_behind = {'p1': np.radians(-40), 'p2': np.radians(-65),
         #                               'p3': np.radians(170), 'p4': np.radians(70)}
 
-        #self.pose_relaxed_arms_side = {'p1': np.radians(55), 'p2': np.radians(-60),
+        #self.pose_relaxed_arms_side = {'p1': np.radians(-55), 'p2': np.radians(-60),
         #                               'p3': np.radians(90), 'p4': np.radians(70)}
 
 
-        self.pose_boring_walk_front_back2_c1 = {'p1': 1.4, 'p2': -1.3,
+        self.pose_boring_walk_front_back2_c1 = {'p1': -1.4, 'p2': -1.3,
                                                'p3': 1.75, 'p4': 1.64,
                                                'p5': 1.04, 'p6': 0.69}
 
@@ -713,47 +713,47 @@ class ArmMovement(object):
                                        'p5': np.radians(45), 'p6': np.radians(40)}
 
 
-        self.pose_folded_grip_right_c1_old = {'p1': np.radians(-14), 'p2': np.radians(90),
+        self.pose_folded_grip_right_c1_old = {'p1': np.radians(14), 'p2': np.radians(90),
                                           'p3': np.radians(63), 'p4': np.radians(85),
                                           'p5': np.radians(14), 'p6': np.radians(12)}
 
 
-        self.pose_folded_grip_right_c1 = {'p1': np.radians(-57), 'p2': np.radians(96),
+        self.pose_folded_grip_right_c1 = {'p1': np.radians(57), 'p2': np.radians(96),
                                           'p3': np.radians(-17), 'p4': np.radians(0),
                                           'p5': np.radians(14), 'p6': np.radians(-90)}
 
 
 
-        self.pose_folded_grip_right_c2_old = {'p1': np.radians(-20), 'p2': np.radians(85),
+        self.pose_folded_grip_right_c2_old = {'p1': np.radians(20), 'p2': np.radians(85),
                                           'p3': np.radians(90), 'p4': np.radians(89),
                                           'p5': np.radians(11), 'p6': np.radians(15)}
 
 
-        self.pose_folded_grip_right_c2 = {  'p1': np.radians(-86), 'p2': np.radians(80),
+        self.pose_folded_grip_right_c2 = {  'p1': np.radians(86), 'p2': np.radians(80),
                                           'p3': np.radians(-62), 'p4': np.radians(-115),
                                           'p5': np.radians(0), 'p6': np.radians(0)}
 
 
-        self.pose_folded_grip_right_c3_old = {'p1': np.radians(-45), 'p2': np.radians(75),
+        self.pose_folded_grip_right_c3_old = {'p1': np.radians(45), 'p2': np.radians(75),
                                           'p3': np.radians(100), 'p4': np.radians(130),
                                           'p5': np.radians(0), 'p6': np.radians(0)}
 
-        self.pose_folded_grip_right_c4_old = {'p1': np.radians(-135), 'p2': np.radians(65),
+        self.pose_folded_grip_right_c4_old = {'p1': np.radians(135), 'p2': np.radians(65),
                                           'p3': np.radians(100), 'p4': np.radians(130),
                                           'p5': np.radians(0), 'p6': np.radians(0)}
 
-        self.pose_boring_walk_front2 = {'p1': np.radians(110), 'p2': np.radians(-75),
+        self.pose_boring_walk_front2 = {'p1': np.radians(-110), 'p2': np.radians(-75),
                                        'p3': np.radians(147), 'p4': np.radians(90),
                                        'p5': np.radians(60), 'p6': np.radians(40)}
 
-        self.pose_waiting_arms_side = {'p1': np.radians(45), 'p2': np.radians(-60),
+        self.pose_waiting_arms_side = {'p1': np.radians(-45), 'p2': np.radians(-60),
                                        'p3': np.radians(105), 'p4': np.radians(90),
                                        'p5': np.radians(10), 'p6': np.radians(50)}
 
-        self.pose_boring_walk_front = {'p1': np.radians(80), 'p2': np.radians(-60),
+        self.pose_boring_walk_front = {'p1': np.radians(-80), 'p2': np.radians(-60),
                                        'p3': np.radians(110), 'p4': np.radians(80)}
 
-        self.pose_marsh_walk_front = {'p1': np.radians(100), 'p2': np.radians(-60+30),
+        self.pose_marsh_walk_front = {'p1': np.radians(-100), 'p2': np.radians(-60),
                                       'p3': np.radians(130), 'p4': np.radians(90)}
 
     def movePose(self, pose, duration=4):
