@@ -37,6 +37,7 @@ from scipy.misc import comb
 import time
 import sys
 import string
+import operator as op
 
 class PrettyOutput(object):
 
@@ -307,7 +308,7 @@ class ROSBridge(object):
         for idx, jtp_list in enumerate(arm_goal_timeline):
             if jtp_list:
                 goal_duration = JTP.get_total_time_duration(jtp_list)
-                timeoutSamples = int(timeline.calc_samples(timeline.SWITCH_VEL_TO_GOAL_TIMEOUT))
+                timeoutSamples = int(timeline.calc_samples(timeline.profile.switch_vel_to_goal_timeout))
                 blockedSamples = int(timeline.calc_samples(goal_duration))
                 arm_velocity_timeline[idx-timeoutSamples:idx+blockedSamples, 7] = 0
 
@@ -341,6 +342,7 @@ class ROSBridge(object):
 
             if self.exec_arm_left or self.exec_arm_right:
                 if isLive:
+                    #FIXME: not in loops...
                     st = SynchronousTrajectory(init_arm_left=self.exec_arm_left, init_arm_right=self.exec_arm_right)
                 else:
                     st = ROSBridge.Dummy('ARM_GOAL')
@@ -360,7 +362,7 @@ class ROSBridge(object):
 
 
 class Profile(object):
-    def __init__(self, rate, max_linear_velocity, max_angular_velocity, max_linear_acceleration, max_angular_acceleration):
+    def __init__(self, rate, max_linear_velocity, max_angular_velocity, max_linear_acceleration, max_angular_acceleration, switch_vel_to_goal_timeout):
         self.rate = float(rate)  # [Hz]
         self.sample_time = 1.0 / rate  # [s]
 
@@ -368,11 +370,11 @@ class Profile(object):
         self.max_angular_velocity = max_angular_velocity
         self.max_linear_acceleration = max_linear_acceleration
         self.max_angular_acceleration = max_angular_acceleration
+        self.switch_vel_to_goal_timeout = switch_vel_to_goal_timeout
 
 
 class Timeline(object):
     def __init__(self, profile):
-        self.SWITCH_VEL_TO_GOAL_TIMEOUT = 0.1
         self.profile = profile
         self.TLX = np.array([], np.float64)
         self.TLY = np.array([], np.float64)
@@ -411,6 +413,10 @@ class Timeline(object):
     def appendArmRight(self, arm_right_data):
         self.ARMR_GOAL.append(arm_right_data)
 
+    def appendVelArm(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
+        self.appendVelArmLeft(j1=j1, j2=j2, j3=j3, j4=j4, j5=j5, j6=j6, j7=j7)
+        self.appendVelArmRight(j1=j1, j2=j2, j3=j3, j4=j4, j5=j5, j6=j6, j7=j7)
+
     def appendVelArmLeft(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
         data = self._createVelArmData(j1=j1, j2=j2, j3=j3, j4=j4, j5=j5, j6=j6, j7=j7)
         self.ARML_VEL = np.append(self.ARML_VEL, data, axis=0)
@@ -418,6 +424,11 @@ class Timeline(object):
     def appendVelArmRight(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
         data = self._createVelArmData(j1=j1, j2=j2, j3=j3, j4=j4, j5=j5, j6=j6, j7=j7)
         self.ARMR_VEL = np.append(self.ARMR_VEL, data, axis=0)
+
+    def appendSwitchVelToGoalTimeout(self):
+        data = self.lin(0, self.profile.switch_vel_to_goal_timeout)
+        self.appendVelArmLeft(j1=data)
+        self.appendVelArmRight(j1=data)
 
     def _createVelArmData(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
         joints = [j1, j2, j3, j4, j5, j6, j7]
@@ -638,16 +649,15 @@ class SynchronousTrajectory():
 
         self.goal_status_dict = self._resolve_goal_stats_codes()
 
-
         if init_arm_left:
             self.action_client_left = actionlib.SimpleActionClient(ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
             if not self.action_client_left.wait_for_server(timeout=rospy.Duration(timeout)):
-                print '!!! CAN NOT INITIALIZE LEFT ARM !!!'
+                PrettyOutput.attation_msg('CAN NOT INITIALIZE LEFT ARM')
 
         if init_arm_right:
             self.action_client_right = actionlib.SimpleActionClient(ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
             if not self.action_client_right.wait_for_server(timeout=rospy.Duration(timeout)):
-                print '!!! CAN NOT INITIALIZE RIGHT ARM !!!'
+                PrettyOutput.attation_msg('CAN NOT INITIALIZE RIGHT ARM')
 
     def _resolve_goal_stats_codes(self):
         CODENAMES = [code for code in dir(GoalStatus) if not code.startswith('_') and code[0] in string.ascii_uppercase]
@@ -702,6 +712,16 @@ class ArmMovement(object):
     pose_boring_walk_front = {'p1': np.radians(-110), 'p2': np.radians(-75),
                                'p3': np.radians(147), 'p4': np.radians(90),
                                'p5': np.radians(60), 'p6': np.radians(40)}
+
+
+    pose_run_arms = {'p1': np.radians(-80), 'p2': np.radians(-75),
+                     'p3': np.radians(90), 'p4': np.radians(70),
+                     'p5': np.radians(0), 'p6': np.radians(20)}
+
+
+    pose_cheer_arms = {'p1': np.radians(-172), 'p2': np.radians(-83),
+                     'p3': np.radians(115), 'p4': np.radians(100),
+                     'p5': np.radians(0), 'p6': np.radians(20)}
 
     def __init__(self, profile):
         self.profile = profile
@@ -1013,33 +1033,95 @@ class StuffToTest(BaseScene):
         self.new_section('speed down')
         self.appendX(self.lin_acc(velocity_start=speed, velocity_lin=speed, velocity_end=0, acc_percentage=0, dec_percentage=0.4, duration=1.5))
 
-    def test_arms(self):
+    def test_slender_arms(self):
 
         self.appendArms(self.movePose(duration=2, pose=self.pose_home))
-
         self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=2))
+        self.appendArms(self.movePose(duration=2, pose=self.pose_home))
+
+    def test_run_arms(self):
+
+        self.appendArms(self.movePose(duration=2, pose=self.pose_run_arms))
 
         self.syncTimeline()
 
-        sin = self.sin(0, np.pi*2, 1)*1.2
-        self.appendVelArmLeft(j3=sin)
+        sin = self.cos(0, np.pi/2, 3.0/4)
+        cos = self.cos(0, np.pi*2, 3)
+        ntimes = 3
 
+        self.appendVelArmLeft(j1=sin*-0.3, j4=sin*0.4)
+        for i in range(ntimes):
+            self.appendVelArmLeft(j1=cos*-0.3, j4=cos*0.4)
 
-
-        #self.syncTimeline()
-        self.appendVelArmLeft(j1=self.lin(0, self.SWITCH_VEL_TO_GOAL_TIMEOUT))
-        #self.appendX(self.lin(0, self.SWITCH_VEL_TO_GOAL_TIMEOUT))
-
-        self.syncTimeline()
-
-        self.appendArms(self.movePose(duration=2, pose=self.pose_boring_walk_back))
-
-        return
-
-        self.appendX(self.lin(0, doTime+3))
+        self.appendSwitchVelToGoalTimeout()
 
         self.syncTimeline()
-        #self.appendArms(*JTP.extend_base_list(None, *self.pose_home))
+
+    def test_cheer_arms(self):
+
+        self.appendArms(self.movePose(duration=8, pose=self.pose_home))
+
+        self.appendArms(self.movePose(duration=8, pose=self.pose_cheer_arms))
+        self.syncTimeline()
+
+        dotime = 1.5
+
+        zero = self.lin(0, dotime)
+        cos_0_pi = self.cos(0, np.pi, dotime)
+        cos_pi_2pi = self.cos(np.pi, np.pi*2, dotime)
+        sin_0_2pi = self.sin(0, np.pi*2, dotime)
+
+        jj = [
+                [ # j1
+                    [zero, zero],  # j1 signal
+                    [0, 0],  # j1 left and right speed
+                ],
+                [  # j2
+                    [zero, zero],
+                    [0, 0],  # j2 left and right speed
+                ],
+                [  # j3
+                    [cos_0_pi, cos_pi_2pi],
+                    [0.2, 0.2],
+                ],
+                [  # j4
+                    [sin_0_2pi, sin_0_2pi],
+                    [-0.4, 0.4],
+                ],
+                [  # j5
+                    [zero, zero],
+                    [0, 0],
+                ],
+                [  # j6
+                    [zero, zero],
+                    [0, 0],
+                ],
+                [  # j7
+                    [zero, zero],
+                    [0, 0],
+                ],
+        ]
+
+        jointlist = list()
+        for jn in range(7):
+            step_data, velocities = zip(*zip(*jj[jn]))
+            jointlist.append(map(lambda step: [step, velocities[0], velocities[1]], step_data))
+
+        steplist = zip(*jointlist)
+
+        for step in steplist:
+            joint_names = ['j1', 'j2', 'j3', 'j4', 'j5', 'j6', 'j7']
+            joint_data, left_velocity, right_velocity = zip(*step)
+            joint_data_left = map(op.mul, joint_data, left_velocity)
+            joint_data_right = map(op.mul, joint_data, right_velocity)
+
+            print dict(zip(joint_names, joint_data_left))
+
+            self.appendVelArmLeft(**dict(zip(joint_names, joint_data_left)))
+            self.appendVelArmRight(**dict(zip(joint_names, joint_data_right)))
+
+        self.appendVelArm(j1=np.array([0], np.float64))
+
 
     def testBezier(self):
         points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
@@ -1146,7 +1228,7 @@ if __name__ == '__main__':
     ###################
 
     cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
-                             max_linear_acceleration=0.022, max_angular_acceleration=0.074)
+                             max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
 
     boring = BoringWindowScene(profile=cob3_3_profile)
     test = StuffToTest(profile=cob3_3_profile)
@@ -1159,7 +1241,9 @@ if __name__ == '__main__':
 
     #boring.to_window()
     #boring.away_from_window()
-    test.test_arms()
+
+    #test.test_run_arms()
+    test.test_cheer_arms()
 
     #test.test_rotmove_side_drive()
 
