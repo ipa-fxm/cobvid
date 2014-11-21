@@ -256,8 +256,6 @@ class ROSBridge(object):
         if arm_goal_timeline[step] is not None:
             synchronous_trajectory.send_jtp_list(timeline.ARML_GOAL[step], is_left_arm=is_left_arm)
 
-
-
         if arm_velocity_timeline[step][7]:
             msg = Float64MultiArray(data=arm_velocity_timeline[step][0:7])
             publisher.publish(msg)
@@ -273,8 +271,6 @@ class ROSBridge(object):
 
     def exec_timeline(self, timeline):
         timeline.syncTimeline()
-        leftGoalBlockTimeRemaining = 0
-        rightGoalBlockTimeRemaining = 0
 
         self.block_arm_velocity_timeline_for_goals(timeline=timeline, arm_goal_timeline=timeline.ARML_GOAL,
                                                    arm_velocity_timeline=timeline.ARML_VEL)
@@ -305,16 +301,6 @@ class ROSBridge(object):
                     self._exec_arm(timeline=timeline, arm_goal_timeline=timeline.ARMR_GOAL,
                                    arm_velocity_timeline=timeline.ARMR_VEL, is_left_arm=False, step=step,
                                    synchronous_trajectory=st, publisher=self.arm_right_velocity_publisher)
-
-            if not isLive:
-                print '-'*50
-
-            #if leftGoalBlockTimeRemaining is None:
-            #    leftGoalBlockTimeRemaining = 0
-            leftGoalBlockTimeRemaining -= timeline.profile.sample_time
-            #if rightGoalBlockTimeRemaining is None:
-            #    rightGoalBlockTimeRemaining = 0
-            rightGoalBlockTimeRemaining -= timeline.profile.sample_time
 
             rospy.sleep(timeline.profile.sample_time)
 
@@ -359,8 +345,6 @@ class Timeline(object):
         self.appendArmRight(arm_right_data=arm_right_data)
 
     def appendArmLeft(self, arm_left_data):
-        print len(self.ARML_VEL)
-        print len(self.ARML_GOAL)
         self.ARML_GOAL.append(arm_left_data)
 
     def appendArmRight(self, arm_right_data):
@@ -471,13 +455,6 @@ class Bezier(object):
         theta_velocity = rel_phi / self.profile.sample_time
 
 
-
-
-
-
-
-
-
         return velocity, theta_velocity
 
 
@@ -486,24 +463,23 @@ class JTP(object):
 
     def __init__(self, rel_time=0,
                  p1=None, p2=None, p3=None, p4=None, p5=None, p6=None, p7=None,
-                 v1=0, v2=0, v3=0, v4=0, v5=0, v6=0, v7=0, jtp=None):
+                 v1=None, v2=None, v3=None, v4=None, v5=None, v6=None, v7=None, jtp=None):
 
         positions = [p1, p2, p3, p4, p5, p6, p7]
+        velocities = [v1, v2, v3, v4, v5, v6, v7]
         isPosSet = bool(sum([int(p is not None) for p in positions]))
+        isVelSet = bool(sum([int(p is not None) for p in velocities]))
 
         for k, v in enumerate(positions):
             positions[k] = v if v else jtp.point.positions[k] if jtp else 0
-
 
         self.point = JointTrajectoryPoint()
 
         if isinstance(jtp, JTP):
             self.point.positions = jtp.point.positions
-
-
         self.point.positions = positions
-        velocities = [v1, v2, v3, v4, v5, v6, v7]
-        if np.abs(np.array(velocities)).sum() != 0:
+
+        if isVelSet:
             self.point.velocities = velocities
         self.time_from_start = rel_time
 
@@ -942,12 +918,13 @@ class StuffToTest(BaseScene):
 
         self.syncTimeline()
 
+        '''
         sin = self.sin(0, np.pi*2, 2)
         zer = np.zeros((len(sin), 8), np.float64)
         zer[..., 2] = sin
         zer[..., 7] = 1
         self.ARML_VEL = np.append(self.ARML_VEL, zer, axis=0)
-
+        '''
         #self.syncTimeline()
 
         #self.appendX(self.lin(0, self.SWITCH_VEL_TO_GOAL_TIMEOUT))
@@ -955,6 +932,8 @@ class StuffToTest(BaseScene):
         self.syncTimeline()
 
         self.appendArms(self.movePose(duration=doTime, pose=self.pose_boring_walk_back))
+
+        return
 
         self.appendX(self.lin(0, doTime+3))
 
