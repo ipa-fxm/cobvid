@@ -284,18 +284,20 @@ class ROSBridge(object):
         if not fakerun:
             rospy.init_node('VID_TEST')
 
-        self.base_publisher = rospy.Publisher(BASE_CONTROLLER_TOPIC, Twist) \
+        queue_size = 0
+
+        self.base_publisher = rospy.Publisher(BASE_CONTROLLER_TOPIC, Twist, queue_size=queue_size) \
             if not fakerun and isLive and exec_base else ROSBridge.Dummy('BASE')
 
-        self.arm_left_velocity_publisher = rospy.Publisher(ARM_LEFT_VELOCITY_TOPIC, Float64MultiArray) \
+        self.arm_left_velocity_publisher = rospy.Publisher(ARM_LEFT_VELOCITY_TOPIC, Float64MultiArray, queue_size=queue_size) \
             if not fakerun and isLive and exec_arm_left else ROSBridge.Dummy('ARM_LEFT')
 
-        self.arm_right_velocity_publisher = rospy.Publisher(ARM_RIGHT_VELOCITY_TOPIC, Float64MultiArray) \
+        self.arm_right_velocity_publisher = rospy.Publisher(ARM_RIGHT_VELOCITY_TOPIC, Float64MultiArray, queue_size=queue_size) \
             if not fakerun and isLive and exec_arm_right else ROSBridge.Dummy('ARM_RIGHT')
 
     def _exec_arm(self, timeline, arm_goal_timeline, arm_velocity_timeline, is_left_arm, step, synchronous_trajectory, publisher):
         if arm_goal_timeline[step] is not None:
-            synchronous_trajectory.send_jtp_list(timeline.ARML_GOAL[step], is_left_arm=is_left_arm)
+            synchronous_trajectory.send_jtp_list(arm_goal_timeline[step], is_left_arm=is_left_arm)
 
         if arm_velocity_timeline[step][7]:
             msg = Float64MultiArray(data=arm_velocity_timeline[step][0:7])
@@ -394,6 +396,14 @@ class Timeline(object):
         arm_left_data, arm_right_data = arm_data
         self.appendArmLeft(arm_left_data=arm_left_data)
         self.appendArmRight(arm_right_data=arm_right_data)
+        self._fillArmGoalTimelinesForMinDuration(arm_data)
+
+    def _fillArmGoalTimelinesForMinDuration(self, arm_data):
+        min_duration = min(map(JTP.get_total_time_duration, arm_data))
+        min_samples = min_duration / self.profile.sample_time
+        fill_data = [None]*int(min_samples-1)
+        self.ARML_GOAL.extend(fill_data)
+        self.syncTimelineArmGoal()
 
     def appendArmLeft(self, arm_left_data):
         self.ARML_GOAL.append(arm_left_data)
@@ -427,8 +437,17 @@ class Timeline(object):
         return data
 
     def syncTimeline(self):
+        self.syncTimelineBase()
+        self.syncTimelineArmVelocity()
+        self.syncTimelineArmGoal()
+
+    def syncTimelineBase(self):
         self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float64], 0, self.TLX, self.TLY, self.TLTH)
+
+    def syncTimelineArmVelocity(self):
         self.ARML_VEL, self.ARMR_VEL = self._evenMaxSamples(np.zeros, [np.float64], 8, self.ARML_VEL, self.ARMR_VEL)
+
+    def syncTimelineArmGoal(self):
         self.ARML_GOAL, self.ARMR_GOAL = self._evenMaxSamples(self._generatePythonList, [None], 0, self.ARML_GOAL, self.ARMR_GOAL)
 
     def _generatePythonList(self, max_samples, *args):
@@ -605,7 +624,7 @@ class JTP(object):
 
     def __repr__(self):
         return 'TimeFromstart: %s - Positions: %s - Velocities: %s' % \
-               (self.point.time_from_start, [np.degrees(p) for p in self.point.positions], self.point.velocities)
+               (self.point.time_from_start, [np.round(np.degrees(p)) for p in self.point.positions], self.point.velocities)
                #(self.point.time_from_start, self.point.positions, self.point.velocities)
 
 
@@ -667,29 +686,22 @@ class SynchronousTrajectory():
         #rospy.sleep(0.05)
         return JTP.get_total_time_duration(jtp_list)
 
-    def callback_left_goal_done(self, status_code, _):
-        print 'DONE CALLBACK', '#'*200
-        print self.goal_status_dict[status_code]
-        print '#'*200
-
-    def cb_active(self, *args, **kwargs):
-        print 'ACTIVE CALLBACK', '*'*200
-        print args, kwargs
-        print '*'*200
-
-    def cb_feedback(self, *args, **kwargs):
-        print 'FEEDBACK CALLBACK', '~'*200
-        print args, kwargs
-        print '~'*200
-
 class ArmMovement(object):
     pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
                  'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
     pose_boring_walk_back = {'p1': np.radians(-55), 'p2': np.radians(-95),
-                              'p3': np.radians(60), 'p4': np.radians(95),
-                              'p5': np.radians(60), 'p6': np.radians(40)}
+                             'p3': np.radians(60), 'p4': np.radians(95),
+                             'p5': np.radians(60), 'p6': np.radians(40)}
 
+    pose_boring_walk_front_back_c1 = {'p1': -1.4, 'p2': -1.3,
+                                       'p3': 1.75, 'p4': 1.64,
+                                       'p5': 1.04, 'p6': 0.69}
+
+
+    pose_boring_walk_front = {'p1': np.radians(-110), 'p2': np.radians(-75),
+                               'p3': np.radians(147), 'p4': np.radians(90),
+                               'p5': np.radians(60), 'p6': np.radians(40)}
 
     def __init__(self, profile):
         self.profile = profile
@@ -703,10 +715,6 @@ class ArmMovement(object):
         #self.pose_relaxed_arms_side = {'p1': np.radians(-55), 'p2': np.radians(-60),
         #                               'p3': np.radians(90), 'p4': np.radians(70)}
 
-
-        self.pose_boring_walk_front_back2_c1 = {'p1': -1.4, 'p2': -1.3,
-                                               'p3': 1.75, 'p4': 1.64,
-                                               'p5': 1.04, 'p6': 0.69}
 
         self.pose_right_folded_back = {'p1': np.radians(-45), 'p2': np.radians(90),
                                        'p3': np.radians(0), 'p4': np.radians(80),
@@ -801,6 +809,24 @@ class ArmMovement(object):
         jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_right)
 
         return jtp_list_left, jtp_list_right
+
+    def buildSlenderArms(self, dotime_step, times):
+
+        jtp_flow_data = JTP.extend_base_list(None, *self.movePose(self.pose_boring_walk_front_back_c1, dotime_step))
+
+        pose_list_left = [self.pose_boring_walk_front_back_c1, self.pose_boring_walk_front,
+                          self.pose_boring_walk_front_back_c1, self.pose_boring_walk_back]
+
+        pose_list_right = [self.pose_boring_walk_front_back_c1, self.pose_boring_walk_back,
+                           self.pose_boring_walk_front_back_c1, self.pose_boring_walk_front]
+
+        jtp_flow_data = JTP.extend_base_list(jtp_flow_data, *self.movePoseSplit(pose_list_left=pose_list_left,
+                                                                       pose_list_right=pose_list_right,
+                                                                       duration=dotime_step, times=times))
+
+        JTP.extend_base_list(jtp_flow_data, *self.movePose(self.pose_boring_walk_front_back_c1, dotime_step))
+
+        return jtp_flow_data
 
 
 class Bricks(object):
@@ -988,23 +1014,25 @@ class StuffToTest(BaseScene):
         self.appendX(self.lin_acc(velocity_start=speed, velocity_lin=speed, velocity_end=0, acc_percentage=0, dec_percentage=0.4, duration=1.5))
 
     def test_arms(self):
-        doTime = 4
-        self.appendArms(self.movePose(duration=doTime, pose=self.pose_home))
-        self.appendX(self.lin(0, doTime))
+
+        self.appendArms(self.movePose(duration=2, pose=self.pose_home))
+
+        self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=2))
 
         self.syncTimeline()
 
-        sin = self.sin(0, np.pi*2, 2)
+        sin = self.sin(0, np.pi*2, 1)*1.2
         self.appendVelArmLeft(j3=sin)
 
 
-        #self.syncTimeline()
 
+        #self.syncTimeline()
+        self.appendVelArmLeft(j1=self.lin(0, self.SWITCH_VEL_TO_GOAL_TIMEOUT))
         #self.appendX(self.lin(0, self.SWITCH_VEL_TO_GOAL_TIMEOUT))
 
         self.syncTimeline()
 
-        self.appendArms(self.movePose(duration=doTime, pose=self.pose_boring_walk_back))
+        self.appendArms(self.movePose(duration=2, pose=self.pose_boring_walk_back))
 
         return
 
