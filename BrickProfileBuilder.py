@@ -38,6 +38,47 @@ import time
 import sys
 import string
 
+class PrettyOutput(object):
+
+    @staticmethod
+    def attation_msg(info_msg, question_msg=''):
+        length = 100
+        pl = list()
+        cnt = 0
+        while len(info_msg):
+            if ' ' not in info_msg or len(info_msg) < length:
+                pl.append(info_msg)
+
+                if len(question_msg):
+                    pl.append('')
+                    pl.append(question_msg + ' [Y/n]')
+                break
+
+            split = info_msg[:length].rsplit(' ', 1)
+            line = split[0].strip()
+            info_msg = info_msg[len(line):].strip()
+            pl.append(line)
+
+        sign = ['    #      ', '   # #     ', '  # | #    ', ' #  .  #   ', '#########  ']
+
+        print '-'*(12 + length)
+
+        for idx in range(max(map(len, [sign, pl]))):
+            if idx < len(sign):
+                print sign[idx],
+                if not idx < len(pl):
+                    print
+
+            if idx < len(pl):
+                print pl[idx]
+
+        print '-'*(12 + length)
+
+        if not len(question_msg):
+            return False
+
+        return True if raw_input('') != 'n' else False
+
 
 class Plotter(object):
     def __init__(self, timeline, plot_profile=False, plot_map=False):
@@ -224,7 +265,7 @@ class ROSBridge(object):
             self.topic_name = topic_name
 
         def publish(self, msg):
-            print '%s:   %s' % (self.topic_name, msg)
+            pass#print '%s:   %s' % (self.topic_name, msg)
 
         def send_jtp_list(self, jtp_list, is_left_arm=True):
             print '%s_%s:   %s' % (self.topic_name, 'LEFT' if is_left_arm else 'RIGHT', jtp_list)
@@ -267,6 +308,16 @@ class ROSBridge(object):
                 timeoutSamples = int(timeline.calc_samples(timeline.SWITCH_VEL_TO_GOAL_TIMEOUT))
                 blockedSamples = int(timeline.calc_samples(goal_duration))
                 arm_velocity_timeline[idx-timeoutSamples:idx+blockedSamples, 7] = 0
+
+                
+                data_loss = arm_velocity_timeline[idx-timeoutSamples:idx+blockedSamples] != 0
+                is_data_loss = bool(data_loss.sum())
+
+                info_msg = 'possible loss of data due to blocking arm velocity\'s for goal at sample %d' % (idx+1)
+                question_msq = 'EXIT APPLICATION?'
+                if is_data_loss and PrettyOutput.attation_msg(info_msg, question_msq):
+                    print 'exiting...'
+                    exit()
 
 
     def exec_timeline(self, timeline):
@@ -349,6 +400,31 @@ class Timeline(object):
 
     def appendArmRight(self, arm_right_data):
         self.ARMR_GOAL.append(arm_right_data)
+
+    def appendVelArmLeft(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
+        data = self._createVelArmData(j1=j1, j2=j2, j3=j3, j4=j4, j5=j5, j6=j6, j7=j7)
+        self.ARML_VEL = np.append(self.ARML_VEL, data, axis=0)
+
+    def appendVelArmRight(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
+        data = self._createVelArmData(j1=j1, j2=j2, j3=j3, j4=j4, j5=j5, j6=j6, j7=j7)
+        self.ARMR_VEL = np.append(self.ARMR_VEL, data, axis=0)
+
+    def _createVelArmData(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
+        joints = [j1, j2, j3, j4, j5, j6, j7]
+        filled_joints = [jn for jn in joints if jn is not None]
+        maxSamples = max(map(len, filled_joints)) if filled_joints else 0
+
+        if not maxSamples:
+            return
+
+        data = np.zeros((maxSamples, 8), np.float64)
+        for n, j in enumerate(joints):
+            if j is None:
+                continue
+
+            data[..., n] = j
+            data[..., 7] = 1
+        return data
 
     def syncTimeline(self):
         self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float64], 0, self.TLX, self.TLY, self.TLTH)
@@ -918,13 +994,10 @@ class StuffToTest(BaseScene):
 
         self.syncTimeline()
 
-        '''
         sin = self.sin(0, np.pi*2, 2)
-        zer = np.zeros((len(sin), 8), np.float64)
-        zer[..., 2] = sin
-        zer[..., 7] = 1
-        self.ARML_VEL = np.append(self.ARML_VEL, zer, axis=0)
-        '''
+        self.appendVelArmLeft(j3=sin)
+
+
         #self.syncTimeline()
 
         #self.appendX(self.lin(0, self.SWITCH_VEL_TO_GOAL_TIMEOUT))
