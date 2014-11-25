@@ -282,8 +282,8 @@ class ROSBridge(object):
         ARM_LEFT_VELOCITY_TOPIC = '/arm_left/joint_group_velocity_controller/command'
         ARM_RIGHT_VELOCITY_TOPIC = '/arm_right/joint_group_velocity_controller/command'
 
-        if not fakerun:
-            rospy.init_node('VID_TEST')
+        #if not fakerun:
+        rospy.init_node('VID_TEST')
 
         queue_size = 0
 
@@ -302,6 +302,7 @@ class ROSBridge(object):
 
         if arm_velocity_timeline[step][7]:
             msg = Float64MultiArray(data=arm_velocity_timeline[step][0:7])
+            print msg
             publisher.publish(msg)
 
     def block_arm_velocity_timeline_for_goals(self, timeline, arm_goal_timeline, arm_velocity_timeline):
@@ -702,7 +703,8 @@ class ArmMovement(object):
 
     pose_boring_walk_back = {'p1': np.radians(-55), 'p2': np.radians(-95),
                              'p3': np.radians(60), 'p4': np.radians(95),
-                             'p5': np.radians(60), 'p6': np.radians(40)}
+                             'p5': np.radians(60), 'p6': np.radians(40),
+                 'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
     pose_boring_walk_front_back_c1 = {'p1': -1.4, 'p2': -1.3,
                                        'p3': 1.75, 'p4': 1.64,
@@ -711,7 +713,8 @@ class ArmMovement(object):
 
     pose_boring_walk_front = {'p1': np.radians(-110), 'p2': np.radians(-75),
                                'p3': np.radians(147), 'p4': np.radians(90),
-                               'p5': np.radians(60), 'p6': np.radians(40)}
+                               'p5': np.radians(60), 'p6': np.radians(40),
+                 'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
 
     pose_run_arms = {'p1': np.radians(-80), 'p2': np.radians(-75),
@@ -726,6 +729,7 @@ class ArmMovement(object):
     def __init__(self, profile):
         self.profile = profile
 
+        '''
         self.pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
                           'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
@@ -739,7 +743,6 @@ class ArmMovement(object):
         self.pose_right_folded_back = {'p1': np.radians(-45), 'p2': np.radians(90),
                                        'p3': np.radians(0), 'p4': np.radians(80),
                                        'p5': np.radians(45), 'p6': np.radians(40)}
-
 
         self.pose_folded_grip_right_c1_old = {'p1': np.radians(14), 'p2': np.radians(90),
                                           'p3': np.radians(63), 'p4': np.radians(85),
@@ -770,20 +773,22 @@ class ArmMovement(object):
                                           'p3': np.radians(100), 'p4': np.radians(130),
                                           'p5': np.radians(0), 'p6': np.radians(0)}
 
-        self.pose_boring_walk_front2 = {'p1': np.radians(-110), 'p2': np.radians(-75),
-                                       'p3': np.radians(147), 'p4': np.radians(90),
-                                       'p5': np.radians(60), 'p6': np.radians(40)}
+        #self.pose_boring_walk_front2 = {'p1': np.radians(-110), 'p2': np.radians(-75),
+        #                               'p3': np.radians(147), 'p4': np.radians(90),
+        #                               'p5': np.radians(60), 'p6': np.radians(40)}
 
         self.pose_waiting_arms_side = {'p1': np.radians(-45), 'p2': np.radians(-60),
                                        'p3': np.radians(105), 'p4': np.radians(90),
                                        'p5': np.radians(10), 'p6': np.radians(50)}
 
-        self.pose_boring_walk_front = {'p1': np.radians(-80), 'p2': np.radians(-60),
-                                       'p3': np.radians(110), 'p4': np.radians(80)}
+        #self.pose_boring_walk_front = {'p1': np.radians(-80), 'p2': np.radians(-60),
+        #                               'p3': np.radians(110), 'p4': np.radians(80),
+        #         'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
-        self.pose_marsh_walk_front = {'p1': np.radians(-100), 'p2': np.radians(-60),
-                                      'p3': np.radians(130), 'p4': np.radians(90)}
+        #self.pose_marsh_walk_front = {'p1': np.radians(-100), 'p2': np.radians(-60),
+        #                              'p3': np.radians(130), 'p4': np.radians(90)}
 
+        '''
     def movePose(self, pose, duration=4):
         jtp_list_left = list()
 
@@ -958,7 +963,7 @@ class StuffToTest(BaseScene):
 
     def test_speed_linear(self):
         self.appendX(self.lin(duration=2, velocity=0))
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.7, velocity_end=0, acc_percentage=0.17, dec_percentage=0.4, duration=3))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.1, velocity_end=0, acc_percentage=0.17, dec_percentage=0.4, duration=1))
         self.syncTimeline()
 
         self.appendReversePath()
@@ -1035,13 +1040,18 @@ class StuffToTest(BaseScene):
 
     def test_slender_arms(self):
 
-        self.appendArms(self.movePose(duration=2, pose=self.pose_home))
+        self.appendArms(self.movePose(duration=6, pose=self.pose_home))
+        self.appendArms(self.movePose(duration=6, pose=self.pose_boring_walk_front_back_c1))
+
         self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=2))
-        self.appendArms(self.movePose(duration=2, pose=self.pose_home))
+
+        #self.appendArms(self.movePose(duration=6, pose=self.pose_boring_walk_front_back_c1))
+        self.appendArms(self.movePose(duration=6, pose=self.pose_home))
 
     def test_run_arms(self):
+        self.appendArms(self.movePose(duration=8, pose=self.pose_home))
 
-        self.appendArms(self.movePose(duration=2, pose=self.pose_run_arms))
+        self.appendArms(self.movePose(duration=6, pose=self.pose_run_arms))
 
         self.syncTimeline()
 
@@ -1059,12 +1069,12 @@ class StuffToTest(BaseScene):
 
     def test_cheer_arms(self):
 
-        self.appendArms(self.movePose(duration=8, pose=self.pose_home))
-
-        self.appendArms(self.movePose(duration=8, pose=self.pose_cheer_arms))
+        #self.appendArms(self.movePose(duration=8, pose=self.pose_home))
+        #self.appendArms(self.movePose(duration=8, pose=self.pose_cheer_arms))
+        self.appendArms(self.movePose(duration=3, pose=self.pose_cheer_arms))
         self.syncTimeline()
 
-        dotime = 1.5
+        dotime = 1
 
         zero = self.lin(0, dotime)
         cos_0_pi = self.cos(0, np.pi, dotime)
@@ -1073,8 +1083,8 @@ class StuffToTest(BaseScene):
 
         jj = [
                 [ # j1
-                    [zero, zero],  # j1 signal
-                    [0, 0],  # j1 left and right speed
+                    [sin_0_2pi, sin_0_2pi],  # j1 signal
+                    [-0.3, 0.3],  # j1 left and right speed
                 ],
                 [  # j2
                     [zero, zero],
@@ -1082,10 +1092,11 @@ class StuffToTest(BaseScene):
                 ],
                 [  # j3
                     [cos_0_pi, cos_pi_2pi],
-                    [0.2, 0.2],
+                    [0.4, 0.4],
                 ],
                 [  # j4
                     [sin_0_2pi, sin_0_2pi],
+                    #[zero, zero],
                     [-0.4, 0.4],
                 ],
                 [  # j5
@@ -1109,16 +1120,20 @@ class StuffToTest(BaseScene):
 
         steplist = zip(*jointlist)
 
-        for step in steplist:
-            joint_names = ['j1', 'j2', 'j3', 'j4', 'j5', 'j6', 'j7']
-            joint_data, left_velocity, right_velocity = zip(*step)
-            joint_data_left = map(op.mul, joint_data, left_velocity)
-            joint_data_right = map(op.mul, joint_data, right_velocity)
 
-            print dict(zip(joint_names, joint_data_left))
+        for _ in range(10):
+            for step in steplist:
+                joint_names = ['j1', 'j2', 'j3', 'j4', 'j5', 'j6', 'j7']
+                joint_data, left_velocity, right_velocity = zip(*step)
+                joint_data_left = map(op.mul, joint_data, left_velocity)
+                joint_data_right = map(op.mul, joint_data, right_velocity)
 
-            self.appendVelArmLeft(**dict(zip(joint_names, joint_data_left)))
-            self.appendVelArmRight(**dict(zip(joint_names, joint_data_right)))
+                print dict(zip(joint_names, joint_data_left))
+
+                self.appendVelArmLeft(**dict(zip(joint_names, joint_data_left)))
+                self.appendVelArmRight(**dict(zip(joint_names, joint_data_right)))
+
+        self.syncTimeline()
 
         self.appendVelArm(j1=np.array([0], np.float64))
 
@@ -1235,15 +1250,17 @@ if __name__ == '__main__':
 
 
     #test.test_map()
-    #test.test_speed_linear()
+    test.test_speed_linear()
     #test.test_speed_angular()
     #test.test_speed_circula_path()
 
     #boring.to_window()
     #boring.away_from_window()
 
-    #test.test_run_arms()
-    test.test_cheer_arms()
+
+    #test.test_slender_arms()  # ok
+    #test.test_run_arms()  # ok
+    #test.test_cheer_arms()  # (ok)
 
     #test.test_rotmove_side_drive()
 
