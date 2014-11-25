@@ -562,7 +562,7 @@ class Bezier(object):
         theta_velocity = rel_phi / self.profile.sample_time
 
 
-        return velocity, theta_velocity
+        return velocity, theta_velocity*-1
 
 
 
@@ -704,17 +704,18 @@ class ArmMovement(object):
     pose_boring_walk_back = {'p1': np.radians(-55), 'p2': np.radians(-95),
                              'p3': np.radians(60), 'p4': np.radians(95),
                              'p5': np.radians(60), 'p6': np.radians(40),
-                 'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
+                             'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
-    pose_boring_walk_front_back_c1 = {'p1': -1.4, 'p2': -1.3,
-                                       'p3': 1.75, 'p4': 1.64,
-                                       'p5': 1.04, 'p6': 0.69}
+
+    pose_boring_walk_front_back_c1 = {'p1': np.radians(-80), 'p2': np.radians(-74),
+                                      'p3': np.radians(100), 'p4': np.radians(94),
+                                      'p5': np.radians(60), 'p6': np.radians(40)}
 
 
     pose_boring_walk_front = {'p1': np.radians(-110), 'p2': np.radians(-75),
-                               'p3': np.radians(147), 'p4': np.radians(90),
-                               'p5': np.radians(60), 'p6': np.radians(40),
-                 'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
+                              'p3': np.radians(147), 'p4': np.radians(90),
+                              'p5': np.radians(60), 'p6': np.radians(40),
+                              'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
 
     pose_run_arms = {'p1': np.radians(-80), 'p2': np.radians(-75),
@@ -723,8 +724,21 @@ class ArmMovement(object):
 
 
     pose_cheer_arms = {'p1': np.radians(-172), 'p2': np.radians(-83),
-                     'p3': np.radians(115), 'p4': np.radians(100),
-                     'p5': np.radians(0), 'p6': np.radians(20)}
+                       'p3': np.radians(115), 'p4': np.radians(100),
+                       'p5': np.radians(0), 'p6': np.radians(20)}
+
+
+
+    bridge_pose_boring_walk_c1_to_waiting_arms_side = {'p1': np.radians(-75), 'p2': np.radians(-72),
+                                                       'p3': np.radians(103), 'p4': np.radians(92),
+                                                       'p5': np.radians(35), 'p6': np.radians(45)}
+
+
+    pose_waiting_arms_side = {'p1': np.radians(-45), 'p2': np.radians(-60),
+                              'p3': np.radians(105), 'p4': np.radians(90),
+                              'p5': np.radians(10), 'p6': np.radians(50)}
+
+
 
     def __init__(self, profile):
         self.profile = profile
@@ -1140,12 +1154,17 @@ class StuffToTest(BaseScene):
 
 
     def testBezier(self):
-        points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
-                           [1, -1], [1, -1], [1, -1], [2, -1], [3, -1], [3, -1], [3, -1], [3, 0],
-                           [2.5, 0.5], [2, 1], [1.5, 1], [0.5, 1], [-0.5, 1], [-0.5, 0], [-0.5, -1], [0.5, -1], ]
-        points = [[0,0], [0,1], [1,1]]
-
-
+        #points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
+        #                   [1, -1], [1, -1], [1, -1], [2, -1], [3, -1], [3, -1], [3, -1], [3, 0],
+        #                   [2.5, 0.5], [2, 1], [1.5, 1], [0.5, 1], [-0.5, 1], [-0.5, 0], [-0.5, -1], [0.5, -1], ]
+        #points = [[0,0], [0,0.5], [0.5,0.5]]
+        yscale = 0.25
+        xscale = 0.25
+        points = [[0, 0], [2, -1], [3, 0], [4, 1], [5.5, 0], [6, 0]]
+        points = np.array(points, np.float)
+        points[..., 1] *= yscale
+        points[..., 0] *= xscale
+        print
 
         x, th = self.createBezier(points, duration=8)
 
@@ -1161,12 +1180,82 @@ class BoringScene(BaseScene):
     def __init__(self, profile):
         super(BoringScene, self).__init__(profile)
 
+    def bridge_home_to_slender(self, dotime=5):
+        self.appendArms(self.movePose(duration=dotime, pose=self.pose_home))
+        self.appendArms(self.movePose(duration=dotime, pose=self.pose_boring_walk_front_back_c1))
+        self.syncTimeline()
+
     def slender_around(self):
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.4, dec_percentage=0.4, duration=6))
+        dotime = 10.5
+        linspeed = 0.17
+        steps = 2
+
+        stepduration = dotime / (steps + 1.0)
+
+        accp = 0.5
+        decp = 0.5
+        _, tlth_quater = self.circular_path(radius=1, phi=np.pi/4, duration=stepduration/2.0, acc_percentage=accp, dec_percentage=decp)
+        _, tlth_half = self.circular_path(radius=1, phi=np.pi/2, duration=stepduration, acc_percentage=accp, dec_percentage=decp)
+
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=linspeed, duration=stepduration/2.0))
+        self.syncTimeline()
+
+        self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=steps-1))
+
+        self.appendX(self.lin(velocity=linspeed, duration=stepduration/2.0))
+        self.appendTH(tlth_quater)
+
+        for i in range(steps):
+            direction = 1 if (i % 2) else -1
+            self.appendX(self.lin(velocity=linspeed, duration=stepduration))
+            self.appendTH(tlth_half*direction)
+
+        self.appendX(self.lin(velocity=linspeed, duration=stepduration/2.0))
+        direction = 1 if (steps % 2) else -1
+        self.appendTH(tlth_quater*direction)
+
+
+
+        self.appendX(self.acc(velocity_start=linspeed, velocity_end=0, duration=stepduration/2.0))
+
+
+
+
+        #self.appendX(tlx)
+        #
+
+
+        #self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.1, dec_percentage=0.1, duration=dotime))
+        #self.appendTH(self.lin(velocity=0, duration=1))
+
+        #self.appendTH(self.sin(0, np.pi*4/2*2, dotime)*0.7)
+
+
+
+
+        #tlx, tlth = self.circular_path(radius=0.5, phi=np.pi*3/8, duration=2.5, acc_percentage=0.4, dec_percentage=0)
+        #self.appendX(tlx)
+        #self.appendTH(tlth)
+
+        #tlx, tlth = self.circular_path(radius=-0.5, phi=-np.pi*6/8, duration=4, acc_percentage=0, dec_percentage=0)
+        #self.appendX(tlx)
+        #self.appendTH(tlth)
+
+
+
+        self.syncTimeline()
+
+    def bridge_slender_to_window(self, dotime=2):
+        self.appendArms(self.movePose(duration=dotime, pose=self.bridge_pose_boring_walk_c1_to_waiting_arms_side))
+        #self.appendArms(self.movePose(duration=dotime, pose=self.pose_waiting_arms_side))
 
     def to_window(self):
-        self.appendX(self.lin(duration=2, velocity=0))
         self.syncTimeline()
+
+
+        self.appendArms(self.movePose(duration=2, pose=self.pose_waiting_arms_side))
+
 
         self.new_section('annaehern')
         self.appendX(self.acc(velocity_start=0, velocity_end=0.21, duration=0.5))
@@ -1249,17 +1338,21 @@ if __name__ == '__main__':
     boring = BoringScene(profile=cob3_3_profile)
     test = StuffToTest(profile=cob3_3_profile)
 
+    boring.bridge_home_to_slender()
+    boring.slender_around()
+    boring.bridge_slender_to_window()
+    boring.to_window()
+    boring.away_from_window()
+
+
 
     #test.test_map()
-    test.test_speed_linear()
+    #test.test_speed_linear()
     #test.test_speed_angular()
     #test.test_speed_circula_path()
 
-    #boring.to_window()
-    #boring.away_from_window()
 
-
-    test.test_slender_arms()  # ok
+    #test.test_slender_arms()  # ok
     #test.test_run_arms()  # ok
     #test.test_cheer_arms()  # (ok)
 
