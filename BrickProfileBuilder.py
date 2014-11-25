@@ -1157,9 +1157,12 @@ class StuffToTest(BaseScene):
 
         self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
 
-class BoringWindowScene(BaseScene):
+class BoringScene(BaseScene):
     def __init__(self, profile):
-        super(BoringWindowScene, self).__init__(profile)
+        super(BoringScene, self).__init__(profile)
+
+    def slender_around(self):
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.4, dec_percentage=0.4, duration=6))
 
     def to_window(self):
         self.appendX(self.lin(duration=2, velocity=0))
@@ -1243,20 +1246,20 @@ if __name__ == '__main__':
     cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
 
-    boring = BoringWindowScene(profile=cob3_3_profile)
+    boring = BoringScene(profile=cob3_3_profile)
     test = StuffToTest(profile=cob3_3_profile)
 
 
     #test.test_map()
-    #test.test_speed_linear()
+    test.test_speed_linear()
     #test.test_speed_angular()
     #test.test_speed_circula_path()
 
     #boring.to_window()
-    boring.away_from_window()
+    #boring.away_from_window()
 
 
-    #test.test_slender_arms()  # ok
+    test.test_slender_arms()  # ok
     #test.test_run_arms()  # ok
     #test.test_cheer_arms()  # (ok)
 
