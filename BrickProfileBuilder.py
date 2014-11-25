@@ -939,6 +939,7 @@ class BaseScene(Timeline, Bricks, Bezier, ArmMovement):
             super(BaseScene, self).__init__(profile)
 
 
+
 class StuffToTest(BaseScene):
     def __init__(self, profile):
             super(StuffToTest, self).__init__(profile)
@@ -963,7 +964,7 @@ class StuffToTest(BaseScene):
 
     def test_speed_linear(self):
         self.appendX(self.lin(duration=2, velocity=0))
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.1, velocity_end=0, acc_percentage=0.17, dec_percentage=0.4, duration=1))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.4, velocity_end=0, acc_percentage=0.4, dec_percentage=0.4, duration=3))
         self.syncTimeline()
 
         self.appendReversePath()
@@ -1160,7 +1161,6 @@ class BoringWindowScene(BaseScene):
     def __init__(self, profile):
         super(BoringWindowScene, self).__init__(profile)
 
-
     def to_window(self):
         self.appendX(self.lin(duration=2, velocity=0))
         self.syncTimeline()
@@ -1168,7 +1168,6 @@ class BoringWindowScene(BaseScene):
         self.new_section('annaehern')
         self.appendX(self.acc(velocity_start=0, velocity_end=0.21, duration=0.5))
         self.appendX(self.lin(0.21, 2))
-
 
         self.new_section('ausrichtung fenster')
         tlx, tlth = self.circular_path(radius=-1, phi=-np.pi/2, duration=10, acc_percentage=0, dec_percentage=0.5)
@@ -1195,7 +1194,6 @@ class BoringWindowScene(BaseScene):
         self.appendX(self.lin(duration=1, velocity=0))
         self.syncTimeline()
 
-        self.appendArms()
 
     def away_from_window(self):
 
@@ -1250,12 +1248,12 @@ if __name__ == '__main__':
 
 
     #test.test_map()
-    test.test_speed_linear()
+    #test.test_speed_linear()
     #test.test_speed_angular()
     #test.test_speed_circula_path()
 
     #boring.to_window()
-    #boring.away_from_window()
+    boring.away_from_window()
 
 
     #test.test_slender_arms()  # ok
@@ -1275,7 +1273,8 @@ if __name__ == '__main__':
     # SETTING MASTER TIMELINE
     ##########################
 
-    masterTimeline = test
+    #masterTimeline = test
+    masterTimeline = boring
 
 
     # EXECUTE / PLOT TIMELINES
