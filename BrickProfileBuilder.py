@@ -1386,9 +1386,16 @@ class ServiceHandler(object):
             self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+3]
             self.is_ros_base = 'base' in sys.argv[idx:idx+3]
 
-    def add_service_callback(self, name, cbfnc):
-        #todo: make usefull
-        rospy.Service(name, Trigger, cbfnc)
+    def callback_creator(self, func_list, bound_timline_object):
+        def callback_function():
+            [fnc() for fnc in func_list]
+            self.execute_timeline(bound_timline_object)
+        return callback_function
+
+    def add_service_callback(self, service_name, func_list, bound_timline_object):
+        if not isinstance(func_list, list):
+            func_list = [func_list]
+        rospy.Service(service_name, Trigger, self.callback_creator(func_list, bound_timline_object))
 
     def do_listen(self):
         rospy.init_node('scenario')
@@ -1472,6 +1479,6 @@ if __name__ == '__main__':
     #masterTimeline = cheer
 
     sh = ServiceHandler()
-    sh.add_service_callback('scene1', foo)
+    sh.add_service_callback('scenario/scene1', test.testGripRose(), test)
     sh.do_listen()
     #sh.execute_timeline(masterTimeline)
