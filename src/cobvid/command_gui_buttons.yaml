@@ -39,5 +39,11 @@ group6:
 group7:
   group_name: scenario
   component_name: cobvid
-  buttons: [[foo,trigger,scene1],
-    [scene2,trigger,scene2]]
+  buttons: [
+    [BRIDGE HOME -> SLENDER, trigger ,br1],
+    [(1) SLENDER, trigger, sc1],
+    [BRIDGE SLENDER -> WINDOW, trigger, br2],
+    [(2) WINDOW, trigger, sc2],
+    [BRIDGE HOME -> CHEER-ARMS-UP, trigger, br3],
+    [(3) CHEER-ARMS-UP, trigger, sc3],
+    ]

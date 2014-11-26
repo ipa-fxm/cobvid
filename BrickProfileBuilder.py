@@ -1388,9 +1388,6 @@ class ServiceHandler(object):
 
     def callback_creator(self, func_list, bound_timline_object):
         def callback_function(arg):
-            print arg
-            print 'cb fnc invoked'
-            print func_list
             [fnc() for fnc in func_list]
             self.execute_timeline(bound_timline_object)
         return callback_function
@@ -1415,11 +1412,6 @@ class ServiceHandler(object):
                                exec_arm_right=self.is_ros_arm_right)
 
             bridge.exec_timeline(masterTimeline)
-
-
-
-def foo(*args, **kwargs):
-    print 'FOO', args, kwargs
 
 if __name__ == '__main__':
 
@@ -1482,6 +1474,11 @@ if __name__ == '__main__':
     #masterTimeline = cheer
 
     sh = ServiceHandler()
-    sh.add_service_callback('scenario/scene1', test.testGripRose, test)
+    sh.add_service_callback('scenario/br1', boring.bridge_home_to_slender, boring)
+    sh.add_service_callback('scenario/sc1', boring.slender_around, boring)
+    sh.add_service_callback('scenario/br2', boring.bridge_slender_to_window, boring)
+    sh.add_service_callback('scenario/sc2', [boring.to_window, boring.away_from_window], boring)
+    sh.add_service_callback('scenario/br3', cheer.bridge_home_to_cheer_arms_up, cheer)
+    sh.add_service_callback('scenario/sc3', cheer.cheer_arms_up, cheer)
     sh.do_listen()
     #sh.execute_timeline(masterTimeline)
