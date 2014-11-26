@@ -377,6 +377,18 @@ class Profile(object):
 class Timeline(object):
     def __init__(self, profile):
         self.profile = profile
+        self.TLX = None
+        self.TLY = None
+        self.TLTH = None
+        self.ARML_GOAL = None
+        self.ARMR_GOAL = None
+        self.ARML_VEL = None
+        self.ARMR_VEL = None
+        self.SECTIONS = None
+
+        self.clear_data()
+
+    def clear_data(self):
         self.TLX = np.array([], np.float64)
         self.TLY = np.array([], np.float64)
         self.TLTH = np.array([], np.float64)
@@ -385,6 +397,7 @@ class Timeline(object):
         self.ARML_VEL = np.ndarray((0, 8), np.float64)
         self.ARMR_VEL = np.ndarray((0, 8), np.float64)
         self.SECTIONS = list()
+
 
     def appendX(self, data):
         self.TLX = np.append(self.TLX, data)
@@ -1386,10 +1399,11 @@ class ServiceHandler(object):
             self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+3]
             self.is_ros_base = 'base' in sys.argv[idx:idx+3]
 
-    def callback_creator(self, func_list, bound_timline_object):
+    def callback_creator(self, func_list, bound_timeline_object):
         def callback_function(arg):
+            bound_timeline_object.clear_data()
             [fnc() for fnc in func_list]
-            self.execute_timeline(bound_timline_object)
+            self.execute_timeline(bound_timeline_object)
         return callback_function
 
     def add_service_callback(self, service_name, func_list, bound_timline_object):
@@ -1434,15 +1448,15 @@ if __name__ == '__main__':
     cheer = CheeringScene(profile=cob4_2_profile)
     test = StuffToTest(profile=cob4_2_profile)
 
-    boring.bridge_home_to_slender()
+    #boring.bridge_home_to_slender()
     #boring.slender_around()
     #boring.bridge_slender_to_window()
     #boring.to_window()
     #boring.away_from_window()
 
 
-    #cheer.bridge_home_to_cheer_arms_up()
-    #cheer.cheer_arms_up()
+    cheer.bridge_home_to_cheer_arms_up()
+    cheer.cheer_arms_up()
 
     #test.test_map()
     #test.test_speed_linear()
@@ -1470,8 +1484,8 @@ if __name__ == '__main__':
     ##########################
 
     #masterTimeline = test
-    masterTimeline = boring
-    #masterTimeline = cheer
+    #masterTimeline = boring
+    masterTimeline = cheer
 
     sh = ServiceHandler()
     sh.add_service_callback('scenario/br1', boring.bridge_home_to_slender, boring)
