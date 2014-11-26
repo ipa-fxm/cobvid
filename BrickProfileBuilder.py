@@ -978,10 +978,10 @@ class StuffToTest(BaseScene):
 
     def test_speed_linear(self):
         self.appendX(self.lin(duration=2, velocity=0))
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.4, velocity_end=0, acc_percentage=0.4, dec_percentage=0.4, duration=3))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.7, velocity_end=0, acc_percentage=0.4, dec_percentage=0.4, duration=3))
         self.syncTimeline()
 
-        self.appendReversePath()
+        #self.appendReversePath()
 
     def test_speed_angular(self):
         self.appendX(self.lin(duration=2, velocity=0))
@@ -1083,75 +1083,9 @@ class StuffToTest(BaseScene):
         self.syncTimeline()
 
     def test_cheer_arms(self):
-
+        pass
         #self.appendArms(self.movePose(duration=8, pose=self.pose_home))
         #self.appendArms(self.movePose(duration=8, pose=self.pose_cheer_arms))
-        self.appendArms(self.movePose(duration=3, pose=self.pose_cheer_arms))
-        self.syncTimeline()
-
-        dotime = 1
-
-        zero = self.lin(0, dotime)
-        cos_0_pi = self.cos(0, np.pi, dotime)
-        cos_pi_2pi = self.cos(np.pi, np.pi*2, dotime)
-        sin_0_2pi = self.sin(0, np.pi*2, dotime)
-
-        jj = [
-                [ # j1
-                    [sin_0_2pi, sin_0_2pi],  # j1 signal
-                    [-0.3, 0.3],  # j1 left and right speed
-                ],
-                [  # j2
-                    [zero, zero],
-                    [0, 0],  # j2 left and right speed
-                ],
-                [  # j3
-                    [cos_0_pi, cos_pi_2pi],
-                    [0.4, 0.4],
-                ],
-                [  # j4
-                    [sin_0_2pi, sin_0_2pi],
-                    #[zero, zero],
-                    [-0.4, 0.4],
-                ],
-                [  # j5
-                    [zero, zero],
-                    [0, 0],
-                ],
-                [  # j6
-                    [zero, zero],
-                    [0, 0],
-                ],
-                [  # j7
-                    [zero, zero],
-                    [0, 0],
-                ],
-        ]
-
-        jointlist = list()
-        for jn in range(7):
-            step_data, velocities = zip(*zip(*jj[jn]))
-            jointlist.append(map(lambda step: [step, velocities[0], velocities[1]], step_data))
-
-        steplist = zip(*jointlist)
-
-
-        for _ in range(10):
-            for step in steplist:
-                joint_names = ['j1', 'j2', 'j3', 'j4', 'j5', 'j6', 'j7']
-                joint_data, left_velocity, right_velocity = zip(*step)
-                joint_data_left = map(op.mul, joint_data, left_velocity)
-                joint_data_right = map(op.mul, joint_data, right_velocity)
-
-                print dict(zip(joint_names, joint_data_left))
-
-                self.appendVelArmLeft(**dict(zip(joint_names, joint_data_left)))
-                self.appendVelArmRight(**dict(zip(joint_names, joint_data_right)))
-
-        self.syncTimeline()
-
-        self.appendVelArm(j1=np.array([0], np.float64))
-
 
     def testBezier(self):
         #points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
@@ -1176,6 +1110,7 @@ class StuffToTest(BaseScene):
 
         self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
 
+
 class BoringScene(BaseScene):
     def __init__(self, profile):
         super(BoringScene, self).__init__(profile)
@@ -1187,10 +1122,14 @@ class BoringScene(BaseScene):
 
     def slender_around(self):
         dotime = 10.5
-        linspeed = 0.17
+        linspeed = 0.3
         steps = 2
+        steps = 3
+        dotime = 3.5 * (steps+1)
+
 
         stepduration = dotime / (steps + 1.0)
+        print stepduration
 
         accp = 0.5
         decp = 0.5
@@ -1253,11 +1192,10 @@ class BoringScene(BaseScene):
     def to_window(self):
         self.syncTimeline()
 
-
-        self.appendArms(self.movePose(duration=2, pose=self.pose_waiting_arms_side))
-
-
         self.new_section('annaehern')
+
+
+
         self.appendX(self.acc(velocity_start=0, velocity_end=0.21, duration=0.5))
         self.appendX(self.lin(0.21, 2))
 
@@ -1265,6 +1203,10 @@ class BoringScene(BaseScene):
         tlx, tlth = self.circular_path(radius=-1, phi=-np.pi/2, duration=10, acc_percentage=0, dec_percentage=0.5)
         self.appendX(tlx)
         self.appendTH(tlth)
+
+        #TODO: am ende von den 10 sek
+        self.syncTimeline()
+        self.appendArms(self.movePose(duration=2, pose=self.pose_waiting_arms_side))
 
         self.new_section('look')
         self.appendX(self.lin(duration=0.25, velocity=0))
@@ -1291,6 +1233,10 @@ class BoringScene(BaseScene):
 
         self.new_section('\nenfernen vom fenster')
 
+        dotime = 2
+        self.appendArms(self.movePose(duration=dotime, pose=self.bridge_pose_boring_walk_c1_to_waiting_arms_side))
+        self.appendArms(self.movePose(duration=dotime, pose=self.pose_boring_walk_front_back_c1))
+
         self.appendY(self.lin(velocity=0, duration=0.5))
         self.appendY(self.lin_acc(velocity_start=0, velocity_lin=0.15, velocity_end=0, acc_percentage=0.3, dec_percentage=0.3, duration=3.5))
 
@@ -1300,6 +1246,87 @@ class BoringScene(BaseScene):
         self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=5.5))
 
         self.syncTimeline()
+
+
+class CheeringScene(BaseScene):
+    def __init__(self, profile):
+        super(CheeringScene, self).__init__(profile)
+
+    def bridge_home_to_cheer_arms_up(self, dotime=8):
+        self.appendArms(self.movePose(duration=dotime, pose=self.pose_home))
+        self.appendArms(self.movePose(duration=dotime, pose=self.pose_cheer_arms))
+        self.syncTimeline()
+
+
+    def cheer_arms_up(self, dotime=1, ntimes=5):
+
+        self.syncTimeline()
+
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, duration=10))
+
+        dotime = 1
+
+        zero = self.lin(0, dotime)
+        cos_0_pi = self.cos(0, np.pi, dotime)
+        cos_pi_2pi = self.cos(np.pi, np.pi*2, dotime)
+        sin_0_2pi = self.sin(0, np.pi*2, dotime)
+
+        jj = [
+                [ # j1
+                    [sin_0_2pi, sin_0_2pi],  # j1 signal
+                    [-0.3, 0.3],  # j1 left and right speed
+                ],
+                [ # j2
+                    [zero, zero],
+                    [0, 0],  # j2 left and right speed
+                ],
+                [ # j3
+                    [cos_0_pi, cos_pi_2pi],
+                    [0.4, 0.4],
+                ],
+                [ # j4
+                    [sin_0_2pi, sin_0_2pi],
+                    #[zero, zero],
+                    [-0.4, 0.4],
+                ],
+                [ # j5
+                    [zero, zero],
+                    [0, 0],
+                ],
+                [ # j6
+                    [zero, zero],
+                    [0, 0],
+                ],
+                [ # j7
+                    [zero, zero],
+                    [0, 0],
+                ],
+        ]
+
+        jointlist = list()
+        for jn in range(7):
+            step_data, velocities = zip(*zip(*jj[jn]))
+            jointlist.append(map(lambda step: [step, velocities[0], velocities[1]], step_data))
+
+        steplist = zip(*jointlist)
+
+
+        for _ in range(ntimes):
+            for step in steplist:
+                joint_names = ['j1', 'j2', 'j3', 'j4', 'j5', 'j6', 'j7']
+                joint_data, left_velocity, right_velocity = zip(*step)
+                joint_data_left = map(op.mul, joint_data, left_velocity)
+                joint_data_right = map(op.mul, joint_data, right_velocity)
+
+                print dict(zip(joint_names, joint_data_left))
+
+                self.appendVelArmLeft(**dict(zip(joint_names, joint_data_left)))
+                self.appendVelArmRight(**dict(zip(joint_names, joint_data_right)))
+
+        self.syncTimeline()
+
+        self.appendVelArm(j1=np.array([0], np.float64))
+
 
 if __name__ == '__main__':
 
@@ -1335,16 +1362,23 @@ if __name__ == '__main__':
     cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
 
-    boring = BoringScene(profile=cob3_3_profile)
-    test = StuffToTest(profile=cob3_3_profile)
+    cob4_2_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
+                             max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
 
-    boring.bridge_home_to_slender()
-    boring.slender_around()
-    boring.bridge_slender_to_window()
-    boring.to_window()
-    boring.away_from_window()
+    boring = BoringScene(profile=cob4_2_profile)
+    cheer = CheeringScene(profile=cob4_2_profile)
+
+    test = StuffToTest(profile=cob4_2_profile)
+
+    #boring.bridge_home_to_slender()
+    #boring.slender_around()
+    #boring.bridge_slender_to_window()
+    #boring.to_window()
+    #boring.away_from_window()
 
 
+    #cheer.bridge_home_to_cheer_arms_up()
+    #cheer.cheer_arms_up()
 
     #test.test_map()
     #test.test_speed_linear()
@@ -1371,6 +1405,7 @@ if __name__ == '__main__':
 
     #masterTimeline = test
     masterTimeline = boring
+    #masterTimeline = cheer
 
 
     # EXECUTE / PLOT TIMELINES
