@@ -1403,7 +1403,7 @@ class ServiceHandler(object):
 
     def execute_timeline(self, timeline):
         if self.is_plot:
-            Plotter(masterTimeline, plot_profile=self.plot_profile, plot_map=self.plot_map)
+            Plotter(timeline, plot_profile=self.plot_profile, plot_map=self.plot_map)
 
         if self.is_ros:
             bridge = ROSBridge(fakerun=self.is_fakerun,
@@ -1411,7 +1411,7 @@ class ServiceHandler(object):
                                exec_arm_left=self.is_ros_arm_left,
                                exec_arm_right=self.is_ros_arm_right)
 
-            bridge.exec_timeline(masterTimeline)
+            bridge.exec_timeline(timeline)
 
 if __name__ == '__main__':
 
@@ -1434,7 +1434,7 @@ if __name__ == '__main__':
     cheer = CheeringScene(profile=cob4_2_profile)
     test = StuffToTest(profile=cob4_2_profile)
 
-    #boring.bridge_home_to_slender()
+    boring.bridge_home_to_slender()
     #boring.slender_around()
     #boring.bridge_slender_to_window()
     #boring.to_window()
@@ -1464,13 +1464,13 @@ if __name__ == '__main__':
     #boring.appendReversePath()
     #test.appendReversePath()
 
-    test.testGripRose()
+    #test.testGripRose()
 
     # SETTING MASTER TIMELINE
     ##########################
 
-    masterTimeline = test
-    #masterTimeline = boring
+    #masterTimeline = test
+    masterTimeline = boring
     #masterTimeline = cheer
 
     sh = ServiceHandler()
@@ -1480,5 +1480,5 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/sc2', [boring.to_window, boring.away_from_window], boring)
     sh.add_service_callback('scenario/br3', cheer.bridge_home_to_cheer_arms_up, cheer)
     sh.add_service_callback('scenario/sc3', cheer.cheer_arms_up, cheer)
-    sh.do_listen()
-    #sh.execute_timeline(masterTimeline)
+    #sh.do_listen()
+    sh.execute_timeline(masterTimeline)
