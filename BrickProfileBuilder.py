@@ -26,6 +26,7 @@ from control_msgs.msg import FollowJointTrajectoryGoal
 from trajectory_msgs.msg import JointTrajectoryPoint
 from std_msgs.msg import Float64MultiArray
 from actionlib_msgs.msg import GoalStatus
+from cob_srvs.srv import Trigger
 
 # IMPORT FOR CALCULATIONS
 import numpy as np
@@ -283,8 +284,7 @@ class ROSBridge(object):
         ARM_RIGHT_VELOCITY_TOPIC = '/arm_right/joint_group_velocity_controller/command'
 
         #if not fakerun:
-        rospy.init_node('VID_TEST')
-
+        rospy.init_node('scenario')
         queue_size = 0
 
         self.base_publisher = rospy.Publisher(BASE_CONTROLLER_TOPIC, Twist, queue_size=queue_size) \
@@ -738,6 +738,11 @@ class ArmMovement(object):
                               'p3': np.radians(105), 'p4': np.radians(90),
                               'p5': np.radians(10), 'p6': np.radians(50)}
 
+    # ROSE GREIFEN
+
+    pose_right_folded_back = {'p1': np.radians(-45), 'p2': np.radians(90),
+                              'p3': np.radians(0), 'p4': np.radians(80),
+                              'p5': np.radians(45), 'p6': np.radians(40)}
 
 
     def __init__(self, profile):
@@ -1110,6 +1115,27 @@ class StuffToTest(BaseScene):
 
         self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
 
+    def testGripRose(self):
+
+        jtp_flow_data = [list(), list()]
+
+        dotime = 8
+
+
+
+        jtp_flow_data[0].append(JTP(rel_time=dotime, **self.pose_right_folded_back))
+
+        #jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_folded_grip_right_c1))
+
+        #jtp_flow_data[0].append(JTP.get_mirrored_jtp(JTP(rel_time=dotime, **am.pose_boring_walk_back2)))
+
+        #jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_folded_grip_right_c1))
+
+        #jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_right_folded_back))
+
+        self.appendArms(jtp_flow_data)
+        self.syncTimeline()
+
 
 class BoringScene(BaseScene):
     def __init__(self, profile):
@@ -1328,32 +1354,69 @@ class CheeringScene(BaseScene):
         self.appendVelArm(j1=np.array([0], np.float64))
 
 
+class ServiceHandler(object):
+    def __init__(self):
+        self.is_fakerun = False
+
+        self.is_plot = False
+        self.plot_map = False
+        self.plot_profile = False
+
+        self.is_ros = False
+        self.is_ros_arm_left = False
+        self.is_ros_arm_right = False
+        self.is_ros_base = False
+
+        self.init_startup_args()
+
+
+    def init_startup_args(self):
+        self.is_fakerun = '-fakerun' in sys.argv
+
+        self.is_plot = '-plot' in sys.argv
+        if self.is_plot:
+            idx = sys.argv.index('-plot') + 1
+            self.plot_map = 'map' in sys.argv[idx:idx+2]
+            self.plot_profile = 'profile' in sys.argv[idx:idx+2]
+
+        self.is_ros = '-ros' in sys.argv
+        if self.is_ros:
+            idx = sys.argv.index('-ros') + 1
+            self.is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+3]
+            self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+3]
+            self.is_ros_base = 'base' in sys.argv[idx:idx+3]
+
+    def add_service_callback(self, name, cbfnc):
+        #todo: make usefull
+        rospy.Service(name, Trigger, cbfnc)
+
+    def do_listen(self):
+        rospy.init_node('scenario')
+        rospy.spin()
+
+    def execute_timeline(self, timeline):
+        if self.is_plot:
+            Plotter(masterTimeline, plot_profile=self.plot_profile, plot_map=self.plot_map)
+
+        if self.is_ros:
+            bridge = ROSBridge(fakerun=self.is_fakerun,
+                               exec_base=self.is_ros_base,
+                               exec_arm_left=self.is_ros_arm_left,
+                               exec_arm_right=self.is_ros_arm_right)
+
+            bridge.exec_timeline(masterTimeline)
+
+
+
+def foo(*args, **kwargs):
+    print 'FOO', args, kwargs
+
 if __name__ == '__main__':
 
     # PARSING STARTUP ARGUMENTS
     ############################
 
-    is_fakerun = '-fakerun' in sys.argv
 
-    is_plot = '-plot' in sys.argv
-    if is_plot:
-        idx = sys.argv.index('-plot') + 1
-        plot_map = 'map' in sys.argv[idx:idx+2]
-        plot_profile = 'profile' in sys.argv[idx:idx+2]
-    else:
-        plot_map = False
-        plot_profile = False
-
-    is_ros = '-ros' in sys.argv
-    if is_ros:
-        idx = sys.argv.index('-ros') + 1
-        is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+3]
-        is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+3]
-        is_ros_base = 'base' in sys.argv[idx:idx+3]
-    else:
-        is_ros_arm_left = False
-        is_ros_arm_right = False
-        is_ros_base = False
 
 
     # CREATE STD STUFF
@@ -1367,7 +1430,6 @@ if __name__ == '__main__':
 
     boring = BoringScene(profile=cob4_2_profile)
     cheer = CheeringScene(profile=cob4_2_profile)
-
     test = StuffToTest(profile=cob4_2_profile)
 
     #boring.bridge_home_to_slender()
@@ -1395,28 +1457,21 @@ if __name__ == '__main__':
     #test.testBezier()
 
 
+
+
     #boring.appendReversePath()
     #test.appendReversePath()
 
-
+    test.testGripRose()
 
     # SETTING MASTER TIMELINE
     ##########################
 
-    #masterTimeline = test
-    masterTimeline = boring
+    masterTimeline = test
+    #masterTimeline = boring
     #masterTimeline = cheer
 
-
-    # EXECUTE / PLOT TIMELINES
-    ###########################
-    if is_plot:
-        Plotter(masterTimeline, plot_profile=plot_profile, plot_map=plot_map)
-
-    if is_ros:
-        bridge = ROSBridge(fakerun=is_fakerun,
-                           exec_base=is_ros_base,
-                           exec_arm_left=is_ros_arm_left,
-                           exec_arm_right=is_ros_arm_right)
-
-        bridge.exec_timeline(masterTimeline)
+    sh = ServiceHandler()
+    sh.add_service_callback('scene1', foo)
+    sh.do_listen()
+    #sh.execute_timeline(masterTimeline)
