@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
 #try:
+
+
 import roslib
 try:
     isLive=True
@@ -27,6 +29,8 @@ import numpy as np
 from itertools import repeat
 import math as m
 
+
+'''
 class JTP(object):
 
     def __init__(self, rel_time=0,
@@ -143,7 +147,6 @@ class SynchronousTrajectory():
         rospy.sleep(0.05)
         return JTP.get_total_time_duration(jtp_list)
 
-
 class ArmMovement(object):
     def __init__(self):
         self.pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
@@ -258,9 +261,10 @@ class ArmMovement(object):
 
         return jtp_list_left, jtp_list_right
 
+'''
 
 if __name__=='__main__':
-
+    exit()
     if isLive:
         st = SynchronousTrajectory()
         am = ArmMovement()
@@ -404,5 +408,3 @@ if __name__=='__main__':
         print '| SCRIPT FINISHED |'
         print '*%s*' % ('-'*17)
         print
-
-

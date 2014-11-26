@@ -408,17 +408,23 @@ class Timeline(object):
     def appendTH(self, data):
         self.TLTH = np.append(self.TLTH, data)
 
-    def appendArms(self, arm_data):
+    def appendArms(self, arm_data, fillToMax=False):
         arm_left_data, arm_right_data = arm_data
         self.appendArmLeft(arm_left_data=arm_left_data)
         self.appendArmRight(arm_right_data=arm_right_data)
-        self._fillArmGoalTimelinesForMinDuration(arm_data)
+        self._fillArmGoalTimelinesForMinDuration(arm_data, max if fillToMax else min)
 
-    def _fillArmGoalTimelinesForMinDuration(self, arm_data):
-        min_duration = min(map(JTP.get_total_time_duration, arm_data))
+    def _fillArmGoalTimelinesForMinDuration(self, arm_data, mode, fillLeft=True, fillRight=True):
+        min_duration = mode(map(JTP.get_total_time_duration, arm_data))
+        print min_duration
         min_samples = min_duration / self.profile.sample_time
         fill_data = [None]*int(min_samples-1)
-        self.ARML_GOAL.extend(fill_data)
+
+        if fillLeft:
+            self.ARML_GOAL.extend(fill_data)
+        if fillRight:
+            self.ARMR_GOAL.extend(fill_data)
+
         self.syncTimelineArmGoal()
 
     def appendArmLeft(self, arm_left_data):
@@ -753,9 +759,39 @@ class ArmMovement(object):
 
     # ROSE GREIFEN
 
-    pose_right_folded_back = {'p1': np.radians(-45), 'p2': np.radians(90),
+    pose_right_folded_back = {'p1': np.radians(55), 'p2': np.radians(90),
                               'p3': np.radians(0), 'p4': np.radians(80),
-                              'p5': np.radians(45), 'p6': np.radians(40)}
+                              'p5': np.radians(55), 'p6': np.radians(40)}
+
+
+    pose_folded_grip_right_c1 = {'p1': np.radians(57), 'p2': np.radians(96),
+                                 'p3': np.radians(-17), 'p4': np.radians(0),
+                                 'p5': np.radians(14), 'p6': np.radians(-90)}
+
+    pose_folded_grip_right_c2 = {'p1': 1.59, 'p2': 1.12,
+                                 'p3': -1.70, 'p4': -2,
+                                 'p5': 0, 'p6': -1.08}
+
+    pose_folded_grip_right_c3 = {'p1': 2.34, 'p2': 1.20,
+                                 'p3': -2.45, 'p4': -1.8,
+                                 'p5': 0.38, 'p6': -0.5}
+
+    pose_folded_grip_right_c4 = {'p1': 3.14, 'p2': 1.66,
+                                 'p3': -1.93, 'p4': -1.37,
+                                 'p5': 0.31, 'p6': 1.0}
+
+    pose_grip_rose_right = {'p1': 3.38, 'p2': 1.83,
+                                 'p3': -1.93, 'p4': -0.45,
+                                 'p5': 0.31, 'p6': 0.55}
+
+    pose_folded_grip_right_c6 = {'p1': 3.57, 'p2': 1.83,
+                                 'p3': -1.93, 'p4': -0.20,
+                                 'p5': 0.31, 'p6': 0.13}
+
+    pose_carry_rose_front_right = {'p1': 2.34, 'p2': 1.20,
+                             'p3': -2.45, 'p4': -1.96,
+                             'p5': 0.38, 'p6': 0.59}
+
 
 
     def __init__(self, profile):
@@ -869,19 +905,19 @@ class ArmMovement(object):
 
     def buildSlenderArms(self, dotime_step, times):
 
-        jtp_flow_data = JTP.extend_base_list(None, *self.movePose(self.pose_boring_walk_front_back_c1, dotime_step))
+        jtp_flow_data = JTP.extend_base_list(None, *self.movePose(ArmMovement.pose_boring_walk_front_back_c1, dotime_step))
 
-        pose_list_left = [self.pose_boring_walk_front_back_c1, self.pose_boring_walk_front,
-                          self.pose_boring_walk_front_back_c1, self.pose_boring_walk_back]
+        pose_list_left = [ArmMovement.pose_boring_walk_front_back_c1, ArmMovement.pose_boring_walk_front,
+                          ArmMovement.pose_boring_walk_front_back_c1, ArmMovement.pose_boring_walk_back]
 
-        pose_list_right = [self.pose_boring_walk_front_back_c1, self.pose_boring_walk_back,
-                           self.pose_boring_walk_front_back_c1, self.pose_boring_walk_front]
+        pose_list_right = [ArmMovement.pose_boring_walk_front_back_c1, ArmMovement.pose_boring_walk_back,
+                           ArmMovement.pose_boring_walk_front_back_c1, ArmMovement.pose_boring_walk_front]
 
         jtp_flow_data = JTP.extend_base_list(jtp_flow_data, *self.movePoseSplit(pose_list_left=pose_list_left,
                                                                        pose_list_right=pose_list_right,
                                                                        duration=dotime_step, times=times))
 
-        JTP.extend_base_list(jtp_flow_data, *self.movePose(self.pose_boring_walk_front_back_c1, dotime_step))
+        JTP.extend_base_list(jtp_flow_data, *self.movePose(ArmMovement.pose_boring_walk_front_back_c1, dotime_step))
 
         return jtp_flow_data
 
@@ -1073,18 +1109,18 @@ class StuffToTest(BaseScene):
 
     def test_slender_arms(self):
 
-        self.appendArms(self.movePose(duration=6, pose=self.pose_home))
-        self.appendArms(self.movePose(duration=6, pose=self.pose_boring_walk_front_back_c1))
+        self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_home))
+        self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_boring_walk_front_back_c1))
 
         self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=2))
 
-        #self.appendArms(self.movePose(duration=6, pose=self.pose_boring_walk_front_back_c1))
-        self.appendArms(self.movePose(duration=6, pose=self.pose_home))
+        #self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_boring_walk_front_back_c1))
+        self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_home))
 
     def test_run_arms(self):
-        self.appendArms(self.movePose(duration=8, pose=self.pose_home))
+        self.appendArms(self.movePose(duration=8, pose=ArmMovement.pose_home))
 
-        self.appendArms(self.movePose(duration=6, pose=self.pose_run_arms))
+        self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_run_arms))
 
         self.syncTimeline()
 
@@ -1102,8 +1138,8 @@ class StuffToTest(BaseScene):
 
     def test_cheer_arms(self):
         pass
-        #self.appendArms(self.movePose(duration=8, pose=self.pose_home))
-        #self.appendArms(self.movePose(duration=8, pose=self.pose_cheer_arms))
+        #self.appendArms(self.movePose(duration=8, pose=ArmMovement.pose_home))
+        #self.appendArms(self.movePose(duration=8, pose=ArmMovement.pose_cheer_arms))
 
     def testBezier(self):
         #points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
@@ -1134,19 +1170,50 @@ class StuffToTest(BaseScene):
 
         dotime = 8
 
+        jtp_flow_data[0].append(JTP(rel_time=dotime, **ArmMovement.pose_right_folded_back))
+        #jtp_flow_data[0].append()
+
+        jtp_flow_data[1].append(JTP(rel_time=6, **ArmMovement.pose_home))
+
+        jtp_flow_data[1].append(JTP(rel_time=6, **ArmMovement.pose_right_folded_back))
+
+        jtp_flow_data[1].append(JTP(rel_time=3, **ArmMovement.pose_right_folded_back)) ### PAUSE
+
+        #################################################
+
+        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c1))
+
+        jtp_flow_data[1].append(JTP.get_mirrored_jtp(JTP(rel_time=2, **ArmMovement.pose_boring_walk_back)))
+
+        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c2))
+
+        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c3))
+
+        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c4))
 
 
-        jtp_flow_data[0].append(JTP(rel_time=dotime, **self.pose_right_folded_back))
+        pargs = dict(ArmMovement.pose_grip_rose_right)
+        pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
+        jtp_flow_data[1].append(JTP(rel_time=2, **pargs))
 
-        #jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_folded_grip_right_c1))
 
-        #jtp_flow_data[0].append(JTP.get_mirrored_jtp(JTP(rel_time=dotime, **am.pose_boring_walk_back2)))
+        ############# handle rose...
 
-        #jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_folded_grip_right_c1))
 
-        #jtp_flow_data[0].append(JTP(rel_time=dotime, **am.pose_right_folded_back))
+        self.appendArms(jtp_flow_data, True)
+        self.syncTimeline()
+        jtp_flow_data = [list(), list()]
 
-        self.appendArms(jtp_flow_data)
+        jtp_flow_data[1].append(JTP(rel_time=8, **ArmMovement.pose_folded_grip_right_c6))
+
+        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c4))
+
+        pargs = dict(ArmMovement.pose_carry_rose_front_right)
+        pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
+        jtp_flow_data[1].append(JTP(rel_time=2, **pargs))
+
+        self.appendArms(jtp_flow_data, True)
+
         self.syncTimeline()
 
 
@@ -1155,8 +1222,8 @@ class BoringScene(BaseScene):
         super(BoringScene, self).__init__(profile)
 
     def bridge_home_to_slender(self, dotime=5):
-        self.appendArms(self.movePose(duration=dotime, pose=self.pose_home))
-        self.appendArms(self.movePose(duration=dotime, pose=self.pose_boring_walk_front_back_c1))
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_home))
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_boring_walk_front_back_c1))
         self.syncTimeline()
 
     def slender_around(self):
@@ -1225,8 +1292,8 @@ class BoringScene(BaseScene):
         self.syncTimeline()
 
     def bridge_slender_to_window(self, dotime=2):
-        self.appendArms(self.movePose(duration=dotime, pose=self.bridge_pose_boring_walk_c1_to_waiting_arms_side))
-        #self.appendArms(self.movePose(duration=dotime, pose=self.pose_waiting_arms_side))
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.bridge_pose_boring_walk_c1_to_waiting_arms_side))
+        #self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_waiting_arms_side))
 
     def to_window(self):
         self.syncTimeline()
@@ -1245,7 +1312,7 @@ class BoringScene(BaseScene):
 
         #TODO: am ende von den 10 sek
         self.syncTimeline()
-        self.appendArms(self.movePose(duration=2, pose=self.pose_waiting_arms_side))
+        self.appendArms(self.movePose(duration=2, pose=ArmMovement.pose_waiting_arms_side))
 
         self.new_section('look')
         self.appendX(self.lin(duration=0.25, velocity=0))
@@ -1273,8 +1340,8 @@ class BoringScene(BaseScene):
         self.new_section('\nenfernen vom fenster')
 
         dotime = 2
-        self.appendArms(self.movePose(duration=dotime, pose=self.bridge_pose_boring_walk_c1_to_waiting_arms_side))
-        self.appendArms(self.movePose(duration=dotime, pose=self.pose_boring_walk_front_back_c1))
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.bridge_pose_boring_walk_c1_to_waiting_arms_side))
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_boring_walk_front_back_c1))
 
         self.appendY(self.lin(velocity=0, duration=0.5))
         self.appendY(self.lin_acc(velocity_start=0, velocity_lin=0.15, velocity_end=0, acc_percentage=0.3, dec_percentage=0.3, duration=3.5))
@@ -1292,8 +1359,8 @@ class CheeringScene(BaseScene):
         super(CheeringScene, self).__init__(profile)
 
     def bridge_home_to_cheer_arms_up(self, dotime=8):
-        self.appendArms(self.movePose(duration=dotime, pose=self.pose_home))
-        self.appendArms(self.movePose(duration=dotime, pose=self.pose_cheer_arms))
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_home))
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_cheer_arms))
         self.syncTimeline()
 
 
@@ -1455,8 +1522,8 @@ if __name__ == '__main__':
     #boring.away_from_window()
 
 
-    cheer.bridge_home_to_cheer_arms_up()
-    cheer.cheer_arms_up()
+    #cheer.bridge_home_to_cheer_arms_up()
+    #cheer.cheer_arms_up()
 
     #test.test_map()
     #test.test_speed_linear()
@@ -1478,14 +1545,14 @@ if __name__ == '__main__':
     #boring.appendReversePath()
     #test.appendReversePath()
 
-    #test.testGripRose()
+    test.testGripRose()
 
     # SETTING MASTER TIMELINE
     ##########################
 
-    #masterTimeline = test
+    masterTimeline = test
     #masterTimeline = boring
-    masterTimeline = cheer
+    #masterTimeline = cheer
 
     sh = ServiceHandler()
     sh.add_service_callback('scenario/br1', boring.bridge_home_to_slender, boring)
