@@ -1,0 +1,43 @@
+#group:
+#  group_name: <group_name>
+#  component_name: <component_name>
+#  buttons: [[button_name1,function_name1,parameter_name2,
+#    [button_name2,function_name2,parameter_name2]]
+
+group1:
+  group_name: base
+  component_name: base
+  buttons: [[stop,stop,omni],
+    [init,trigger,init],
+    [recover,trigger,recover]]
+group4:
+  group_name: sensorring
+  component_name: sensorring
+  buttons: [[stop,stop],
+    [init,init],
+    [recover,recover],
+    [front,move,front],
+    [back,move,back],
+    [left,move,left],
+    [right,move,right]]
+group5:
+  group_name: arm_left
+  component_name: arm_left
+  buttons: [[stop,stop],
+    [init,init],
+    [recover,recover],
+    [home,move,home],
+    [folded,move,folded]]
+group6:
+  group_name: arm_right
+  component_name: arm_right
+  buttons: [[stop,stop],
+    [init,init],
+    [recover,recover],
+    [home,move,home],
+    [folded,move,folded]]
+group7:
+  group_name: scenario
+  component_name: cobvid
+  buttons: [[foo,trigger,scene1],
+    [scene2,trigger,scene2]]

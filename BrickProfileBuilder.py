@@ -1387,7 +1387,10 @@ class ServiceHandler(object):
             self.is_ros_base = 'base' in sys.argv[idx:idx+3]
 
     def callback_creator(self, func_list, bound_timline_object):
-        def callback_function():
+        def callback_function(arg):
+            print arg
+            print 'cb fnc invoked'
+            print func_list
             [fnc() for fnc in func_list]
             self.execute_timeline(bound_timline_object)
         return callback_function
@@ -1479,6 +1482,6 @@ if __name__ == '__main__':
     #masterTimeline = cheer
 
     sh = ServiceHandler()
-    sh.add_service_callback('scenario/scene1', test.testGripRose(), test)
+    sh.add_service_callback('scenario/scene1', test.testGripRose, test)
     sh.do_listen()
     #sh.execute_timeline(masterTimeline)
