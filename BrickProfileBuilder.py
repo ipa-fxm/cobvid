@@ -267,10 +267,10 @@ class ROSBridge(object):
             self.topic_name = topic_name
 
         def publish(self, msg):
-            pass#print '%s:   %s' % (self.topic_name, msg)
+            print 'FAKE: %s:   %s' % (self.topic_name, msg)
 
         def send_jtp_list(self, jtp_list, is_left_arm=True):
-            print '%s_%s:   %s' % (self.topic_name, 'LEFT' if is_left_arm else 'RIGHT', jtp_list)
+            print 'FAKE: %s_%s:   %s' % (self.topic_name, 'LEFT' if is_left_arm else 'RIGHT', jtp_list)
             return 1
 
 
@@ -296,13 +296,18 @@ class ROSBridge(object):
         self.arm_right_velocity_publisher = rospy.Publisher(ARM_RIGHT_VELOCITY_TOPIC, Float64MultiArray, queue_size=queue_size) \
             if not fakerun and isLive and exec_arm_right else ROSBridge.Dummy('ARM_RIGHT')
 
+        if not fakerun and isLive:
+            self.synchronous_trajectory = SynchronousTrajectory(init_arm_left=self.exec_arm_left, init_arm_right=self.exec_arm_right)
+        else:
+            self.synchronous_trajectory = ROSBridge.Dummy('ARM_GOAL')
+
+
     def _exec_arm(self, timeline, arm_goal_timeline, arm_velocity_timeline, is_left_arm, step, synchronous_trajectory, publisher):
         if arm_goal_timeline[step] is not None:
             synchronous_trajectory.send_jtp_list(arm_goal_timeline[step], is_left_arm=is_left_arm)
 
         if arm_velocity_timeline[step][7]:
             msg = Float64MultiArray(data=arm_velocity_timeline[step][0:7])
-            print msg
             publisher.publish(msg)
 
     def block_arm_velocity_timeline_for_goals(self, timeline, arm_goal_timeline, arm_velocity_timeline):
@@ -312,7 +317,6 @@ class ROSBridge(object):
                 timeoutSamples = int(timeline.calc_samples(timeline.profile.switch_vel_to_goal_timeout))
                 blockedSamples = int(timeline.calc_samples(goal_duration))
                 arm_velocity_timeline[idx-timeoutSamples:idx+blockedSamples, 7] = 0
-
 
                 data_loss = arm_velocity_timeline[idx-timeoutSamples:idx+blockedSamples] != 0
                 is_data_loss = bool(data_loss.sum())
@@ -342,21 +346,17 @@ class ROSBridge(object):
                 self.base_publisher.publish(twist)
 
             if self.exec_arm_left or self.exec_arm_right:
-                if isLive:
-                    #FIXME: not in loops...
-                    st = SynchronousTrajectory(init_arm_left=self.exec_arm_left, init_arm_right=self.exec_arm_right)
-                else:
-                    st = ROSBridge.Dummy('ARM_GOAL')
-
                 if self.exec_arm_left:
                     self._exec_arm(timeline=timeline, arm_goal_timeline=timeline.ARML_GOAL,
                                    arm_velocity_timeline=timeline.ARML_VEL, is_left_arm=True, step=step,
-                                   synchronous_trajectory=st, publisher=self.arm_left_velocity_publisher)
+                                   synchronous_trajectory=self.synchronous_trajectory,
+                                   publisher=self.arm_left_velocity_publisher)
 
                 if self.exec_arm_right:
                     self._exec_arm(timeline=timeline, arm_goal_timeline=timeline.ARMR_GOAL,
                                    arm_velocity_timeline=timeline.ARMR_VEL, is_left_arm=False, step=step,
-                                   synchronous_trajectory=st, publisher=self.arm_right_velocity_publisher)
+                                   synchronous_trajectory=self.synchronous_trajectory,
+                                   publisher=self.arm_right_velocity_publisher)
 
             rospy.sleep(timeline.profile.sample_time)
 
@@ -416,7 +416,6 @@ class Timeline(object):
 
     def _fillArmGoalTimelinesForMinDuration(self, arm_data, mode, fillLeft=True, fillRight=True):
         min_duration = mode(map(JTP.get_total_time_duration, arm_data))
-        print min_duration
         min_samples = min_duration / self.profile.sample_time
         fill_data = [None]*int(min_samples-1)
 
@@ -428,9 +427,13 @@ class Timeline(object):
         self.syncTimelineArmGoal()
 
     def appendArmLeft(self, arm_left_data):
+        if not arm_left_data:
+            return
         self.ARML_GOAL.append(arm_left_data)
 
     def appendArmRight(self, arm_right_data):
+        if not arm_right_data:
+            return
         self.ARMR_GOAL.append(arm_right_data)
 
     def appendVelArm(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
@@ -619,7 +622,13 @@ class JTP(object):
     @staticmethod
     def get_mirrored_jtp(jtp):
         positions = [p*-1 for p in jtp.point.positions]
-        return JTP(jtp.time_from_start, *positions)
+        velocities = [v*-1 for v in jtp.point.velocities]
+
+        args = list()
+        args.extend(positions)
+        args.extend(velocities)
+
+        return JTP(jtp.time_from_start, *args)
 
 
     @staticmethod
@@ -672,12 +681,16 @@ class SynchronousTrajectory():
         if init_arm_left:
             self.action_client_left = actionlib.SimpleActionClient(ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
             if not self.action_client_left.wait_for_server(timeout=rospy.Duration(timeout)):
-                PrettyOutput.attation_msg('CAN NOT INITIALIZE LEFT ARM')
+                if PrettyOutput.attation_msg('CAN NOT INITIALIZE LEFT ARM', 'EXIT APPLICATION?'):
+                    print 'exiting...'
+                    exit()
 
         if init_arm_right:
             self.action_client_right = actionlib.SimpleActionClient(ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
             if not self.action_client_right.wait_for_server(timeout=rospy.Duration(timeout)):
-                PrettyOutput.attation_msg('CAN NOT INITIALIZE RIGHT ARM')
+                if PrettyOutput.attation_msg('CAN NOT INITIALIZE RIGHT ARM', 'EXIT APPLICATION?'):
+                    print 'exiting...'
+                    exit()
 
     def _resolve_goal_stats_codes(self):
         CODENAMES = [code for code in dir(GoalStatus) if not code.startswith('_') and code[0] in string.ascii_uppercase]
@@ -1121,6 +1134,7 @@ class StuffToTest(BaseScene):
         self.appendArms(self.movePose(duration=8, pose=ArmMovement.pose_home))
 
         self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_run_arms))
+        self.appendArms(self.movePose(duration=2, pose=ArmMovement.pose_run_arms))
 
         self.syncTimeline()
 
@@ -1213,7 +1227,6 @@ class StuffToTest(BaseScene):
         jtp_flow_data[1].append(JTP(rel_time=2, **pargs))
 
         self.appendArms(jtp_flow_data, True)
-
         self.syncTimeline()
 
 
@@ -1354,6 +1367,53 @@ class BoringScene(BaseScene):
         self.syncTimeline()
 
 
+class FindingRose(BaseScene):
+    def __init__(self, profile):
+        super(FindingRose, self).__init__(profile)
+
+    def bridge_home_to_grip_rose(self):
+        jtp_flow_data = [list(), list()]
+
+        jtp_flow_data[1].append(JTP(rel_time=6, **ArmMovement.pose_home))
+        jtp_flow_data[1].append(JTP(rel_time=6, **ArmMovement.pose_right_folded_back))
+
+        self.appendArms(jtp_flow_data, True)
+        self.syncTimeline()
+
+    def act_griper_to_rose(self):
+        jtp_flow_data = [list(), list()]
+
+        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c1))
+        jtp_flow_data[1].append(JTP.get_mirrored_jtp(JTP(rel_time=2, **ArmMovement.pose_boring_walk_back)))
+        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c2))
+        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c3))
+        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c4))
+
+        pargs = dict(ArmMovement.pose_grip_rose_right)
+        pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
+        jtp_flow_data[1].append(JTP(rel_time=2, **pargs))
+
+        self.appendArms(jtp_flow_data, True)
+        self.syncTimeline()
+
+
+    def act_grip_rose(self):
+        pass
+
+    def act_gripper_away_from_rose(self):
+        jtp_flow_data = [list(), list()]
+
+        jtp_flow_data[1].append(JTP(rel_time=8, **ArmMovement.pose_folded_grip_right_c6))
+        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c4))
+
+        pargs = dict(ArmMovement.pose_carry_rose_front_right)
+        pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
+        jtp_flow_data[1].append(JTP(rel_time=2, **pargs))
+
+        self.appendArms(jtp_flow_data, True)
+        self.syncTimeline()
+
+
 class CheeringScene(BaseScene):
     def __init__(self, profile):
         super(CheeringScene, self).__init__(profile)
@@ -1438,6 +1498,8 @@ class ServiceHandler(object):
     def __init__(self):
         self.is_fakerun = False
 
+        self.is_service_mode = False
+
         self.is_plot = False
         self.plot_map = False
         self.plot_profile = False
@@ -1449,9 +1511,9 @@ class ServiceHandler(object):
 
         self.init_startup_args()
 
-
     def init_startup_args(self):
         self.is_fakerun = '-fakerun' in sys.argv
+        self.is_service_mode = '-servicemode' in sys.argv
 
         self.is_plot = '-plot' in sys.argv
         if self.is_plot:
@@ -1470,7 +1532,7 @@ class ServiceHandler(object):
         def callback_function(arg):
             bound_timeline_object.clear_data()
             [fnc() for fnc in func_list]
-            self.execute_timeline(bound_timeline_object)
+            self.execute_timeline(bound_timeline_object, is_callback=True)
         return callback_function
 
     def add_service_callback(self, service_name, func_list, bound_timline_object):
@@ -1479,10 +1541,17 @@ class ServiceHandler(object):
         rospy.Service(service_name, Trigger, self.callback_creator(func_list, bound_timline_object))
 
     def do_listen(self):
+        if not self.is_service_mode:
+            PrettyOutput.attation_msg('LISTENING ONLY IN SERVICEMODE')
+            return
         rospy.init_node('scenario')
         rospy.spin()
 
-    def execute_timeline(self, timeline):
+    def execute_timeline(self, timeline, is_callback=False):
+        if not is_callback and self.is_service_mode:
+            PrettyOutput.attation_msg('SERVICEMODE ENABLED - DIRECT EXECUTION FORBIDDEN')
+            return
+
         if self.is_plot:
             Plotter(timeline, plot_profile=self.plot_profile, plot_map=self.plot_map)
 
@@ -1508,11 +1577,12 @@ if __name__ == '__main__':
     cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
 
-    cob4_2_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
+    cob4_2_profile = Profile(rate=50, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
 
     boring = BoringScene(profile=cob4_2_profile)
     cheer = CheeringScene(profile=cob4_2_profile)
+    findrose = FindingRose(profile=cob4_2_profile)
     test = StuffToTest(profile=cob4_2_profile)
 
     #boring.bridge_home_to_slender()
@@ -1532,7 +1602,7 @@ if __name__ == '__main__':
 
 
     #test.test_slender_arms()  # ok
-    #test.test_run_arms()  # ok
+    test.test_run_arms()  # ok
     #test.test_cheer_arms()  # (ok)
 
     #test.test_rotmove_side_drive()
@@ -1545,7 +1615,8 @@ if __name__ == '__main__':
     #boring.appendReversePath()
     #test.appendReversePath()
 
-    test.testGripRose()
+    #test.testGripRose()
+
 
     # SETTING MASTER TIMELINE
     ##########################
@@ -1559,7 +1630,11 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/sc1', boring.slender_around, boring)
     sh.add_service_callback('scenario/br2', boring.bridge_slender_to_window, boring)
     sh.add_service_callback('scenario/sc2', [boring.to_window, boring.away_from_window], boring)
-    sh.add_service_callback('scenario/br3', cheer.bridge_home_to_cheer_arms_up, cheer)
-    sh.add_service_callback('scenario/sc3', cheer.cheer_arms_up, cheer)
-    #sh.do_listen()
+    sh.add_service_callback('scenario/br5', findrose.bridge_home_to_grip_rose, findrose)
+    sh.add_service_callback('scenario/sc5', [findrose.act_griper_to_rose, findrose.act_grip_rose, findrose.act_gripper_away_from_rose], findrose)
+    sh.add_service_callback('scenario/br7', cheer.bridge_home_to_cheer_arms_up, cheer)
+    sh.add_service_callback('scenario/sc7', cheer.cheer_arms_up, cheer)
+
     sh.execute_timeline(masterTimeline)
+
+    sh.do_listen()
