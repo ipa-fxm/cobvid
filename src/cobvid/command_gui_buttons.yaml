@@ -27,7 +27,8 @@ group5:
     [init,init],
     [recover,recover],
     [home,move,home],
-    [folded,move,folded]]
+    [folded,move,folded],
+    [side,move,side]]
 group6:
   group_name: arm_right
   component_name: arm_right
@@ -35,7 +36,8 @@ group6:
     [init,init],
     [recover,recover],
     [home,move,home],
-    [folded,move,folded]]
+    [folded,move,folded],
+    [side,move,side]]
 group7:
   group_name: scenario
   component_name: cobvid
@@ -44,9 +46,11 @@ group7:
     [(1) SLENDER, trigger, sc1],
     [BRIDGE SLENDER -> WINDOW, trigger, br2],
     [(2) WINDOW, trigger, sc2],
+    [BRIDGE HOME -> DISCOVER, trigger, br4],
+    [(4) RUN AWAY, trigger, sc4],
     [BRIDGE HOME -> GRIP ROSE, trigger, br5],
     [(5) GRIP ROSE, trigger, sc5],
     [BRIDGE HOME -> CHEER-ARMS-UP, trigger, br7],
     [(7) CHEER-ARMS-UP, trigger, sc7],
-    ['!!! TEST RUN ARMS', trigger, test1],
+    ['!!! TEST !!!', trigger, test1],
     ]

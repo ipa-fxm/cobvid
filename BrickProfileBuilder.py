@@ -361,6 +361,75 @@ class ROSBridge(object):
             rospy.sleep(timeline.profile.sample_time)
 
 
+class ServiceHandler(object):
+    def __init__(self):
+        self.is_fakerun = False
+
+        self.is_service_mode = False
+
+        self.is_plot = False
+        self.plot_map = False
+        self.plot_profile = False
+
+        self.is_ros = False
+        self.is_ros_arm_left = False
+        self.is_ros_arm_right = False
+        self.is_ros_base = False
+
+        self.init_startup_args()
+
+    def init_startup_args(self):
+        self.is_fakerun = '-fakerun' in sys.argv
+        self.is_service_mode = '-servicemode' in sys.argv
+
+        self.is_plot = '-plot' in sys.argv
+        if self.is_plot:
+            idx = sys.argv.index('-plot') + 1
+            self.plot_map = 'map' in sys.argv[idx:idx+2]
+            self.plot_profile = 'profile' in sys.argv[idx:idx+2]
+
+        self.is_ros = '-ros' in sys.argv
+        if self.is_ros:
+            idx = sys.argv.index('-ros') + 1
+            self.is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+3]
+            self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+3]
+            self.is_ros_base = 'base' in sys.argv[idx:idx+3]
+
+    def callback_creator(self, func_list, bound_timeline_object):
+        def callback_function(arg):
+            bound_timeline_object.clear_data()
+            [fnc() for fnc in func_list]
+            self.execute_timeline(bound_timeline_object, is_callback=True)
+        return callback_function
+
+    def add_service_callback(self, service_name, func_list, bound_timline_object):
+        if not isinstance(func_list, list):
+            func_list = [func_list]
+        rospy.Service(service_name, Trigger, self.callback_creator(func_list, bound_timline_object))
+
+    def do_listen(self):
+        if not self.is_service_mode:
+            PrettyOutput.attation_msg('LISTENING ONLY IN SERVICEMODE')
+            return
+        rospy.init_node('scenario')
+        rospy.spin()
+
+    def execute_timeline(self, timeline, is_callback=False):
+        if not is_callback and self.is_service_mode:
+            PrettyOutput.attation_msg('SERVICEMODE ENABLED - DIRECT EXECUTION FORBIDDEN')
+            return
+
+        if self.is_plot:
+            Plotter(timeline, plot_profile=self.plot_profile, plot_map=self.plot_map)
+
+        if self.is_ros:
+            bridge = ROSBridge(fakerun=self.is_fakerun,
+                               exec_base=self.is_ros_base,
+                               exec_arm_left=self.is_ros_arm_left,
+                               exec_arm_right=self.is_ros_arm_right)
+
+            bridge.exec_timeline(timeline)
+
 
 class Profile(object):
     def __init__(self, rate, max_linear_velocity, max_angular_velocity, max_linear_acceleration, max_angular_acceleration, switch_vel_to_goal_timeout):
@@ -750,16 +819,14 @@ class ArmMovement(object):
                               'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
 
-    pose_run_arms = {'p1': np.radians(-80), 'p2': np.radians(-75),
-                     'p3': np.radians(90), 'p4': np.radians(70),
-                     'p5': np.radians(0), 'p6': np.radians(20)}
+    pose_run_arms = {'p1': np.radians(-60), 'p2': np.radians(-75),
+                     'p3': np.radians(80), 'p4': np.radians(105),
+                     'p5': np.radians(40), 'p6': np.radians(20)}
 
 
     pose_cheer_arms = {'p1': np.radians(-172), 'p2': np.radians(-83),
                        'p3': np.radians(115), 'p4': np.radians(100),
                        'p5': np.radians(0), 'p6': np.radians(20)}
-
-
 
     bridge_pose_boring_walk_c1_to_waiting_arms_side = {'p1': np.radians(-75), 'p2': np.radians(-72),
                                                        'p3': np.radians(103), 'p4': np.radians(92),
@@ -804,6 +871,11 @@ class ArmMovement(object):
     pose_carry_rose_front_right = {'p1': 2.34, 'p2': 1.20,
                              'p3': -2.45, 'p4': -1.96,
                              'p5': 0.38, 'p6': 0.59}
+
+
+    pose_cheer_drum = {'p1': -2.37, 'p2': -1.39,
+                       'p3': 1.97, 'p4': 1.37,
+                       'p5': 0, 'p6': 0.18}
 
 
 
@@ -998,12 +1070,8 @@ class Bricks(object):
     def const_direction_rotation(self, velocity_start_x, velocity_start_y, phi, duration):
         _, tlth = self.circular_path(radius=0, phi=phi, duration=duration, acc_percentage=0.2, dec_percentage=0.2)
 
-
-
         cos_scale = self.cos(start=0, stop=phi, duration=duration)
         sin_scale = self.sin(start=0, stop=phi, duration=duration)
-
-
 
         tlx = cos_scale * velocity_start_x - sin_scale * velocity_start_y
         tly = sin_scale * velocity_start_x + cos_scale * velocity_start_y
@@ -1093,32 +1161,95 @@ class StuffToTest(BaseScene):
         self.syncTimeline()
 
 
-    def test_rotmove_side_drive(self):
-        speed = 0.5
+    def test_rotmove_side_drive(self, lin_speed=0.25, acc_duration=1, rot_duration=2, ndrums=1,
+                                pre_lin_duration=2, post_lin_duration=2):
+
         phi = np.pi / 2
+        goto_drum_pose_duration = 3.5
 
-        self.new_section('speed up')
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=speed, velocity_end=speed, acc_percentage=0.4, dec_percentage=0, duration=1.5))
+        ## BRIDGE ##
+        #self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_home))
+        self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_run_arms))
+
+        #self.appendArms(self.movePose(duration=0.5, pose=ArmMovement.pose_cheer_drum))
 
 
-        self.new_section('rotate 1')
-        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=speed, velocity_start_y=0, phi=phi, duration=3.5)
+        self.syncTimeline()
+
+        ## ACT ##
+
+        pre_ld1 = pre_lin_duration - (goto_drum_pose_duration - rot_duration)
+        pre_ld2 = goto_drum_pose_duration - rot_duration
+
+        assert pre_ld1 >= 0
+        assert pre_ld2 >= 0
+        assert goto_drum_pose_duration <= (rot_duration + pre_lin_duration)
+
+
+        dotime_step = 1.25
+        #ntimes = int(np.ceil(lin_duration / dotime_step))
+
+        lin_duration = ndrums * dotime_step + dotime_step / 2
+
+        sin = self.sin(0, np.pi/2, dotime_step/4.0)
+        sinrev = sin[::-1]
+        cos = self.cos(0, np.pi*2, dotime_step)
+
+        j1speed = 0.5
+        j4speed = 0.5
+        j5speed = 0.5
+        j6speed = 0.5
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=lin_speed, duration=acc_duration))
+
+
+        self.syncTimeline()
+
+        self.appendX(self.lin(lin_speed, pre_ld1))
+
+        self.syncTimeline()
+
+        self.appendX(self.lin(lin_speed, pre_ld2))
+        self.syncTimelineBase()
+
+        pargs = dict(ArmMovement.pose_cheer_drum)
+        pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
+        self.appendArms(self.movePose(duration=goto_drum_pose_duration, pose=pargs))
+
+        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=lin_speed, velocity_start_y=0, phi=phi, duration=rot_duration)
         self.appendX(tlx)
         self.appendY(tly)
         self.appendTH(tlth)
 
-        self.appendY(self.lin(-speed, 1))
+        self.syncTimeline()
 
-        self.new_section('rot back')
-        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=0, velocity_start_y=-speed, phi=-phi, duration=3.5)
+        self.appendY(self.lin(-lin_speed, lin_duration))
+
+        self.appendVelArmLeft(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
+        self.appendVelArmRight(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
+
+        for _ in range(ndrums):
+            self.appendVelArmLeft(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
+            self.appendVelArmRight(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
+
+        self.appendVelArmLeft(j1=sinrev*-j1speed, j4=sinrev*j4speed, j5=sinrev*j5speed, j6=sinrev*j6speed)
+        self.appendVelArmRight(j1=sinrev*-j1speed, j4=sinrev*j4speed, j5=sinrev*j5speed, j6=sinrev*j6speed)
+
+        self.syncTimeline()
+
+        self.appendSwitchVelToGoalTimeout()
+        self.syncTimelineArmGoal()
+
+        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=0, velocity_start_y=-lin_speed, phi=-phi, duration=rot_duration)
         self.appendX(tlx)
         self.appendY(tly)
         self.appendTH(tlth)
 
+        self.appendArms(self.movePose(duration=goto_drum_pose_duration, pose=ArmMovement.pose_run_arms))
 
+        self.appendX(self.lin(lin_speed, post_lin_duration))
 
-        self.new_section('speed down')
-        self.appendX(self.lin_acc(velocity_start=speed, velocity_lin=speed, velocity_end=0, acc_percentage=0, dec_percentage=0.4, duration=1.5))
+        self.appendX(self.acc(velocity_start=lin_speed, velocity_end=0, duration=acc_duration))
 
     def test_slender_arms(self):
 
@@ -1131,29 +1262,48 @@ class StuffToTest(BaseScene):
         self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_home))
 
     def test_run_arms(self):
-        self.appendArms(self.movePose(duration=8, pose=ArmMovement.pose_home))
+        #todo: new class etc...
+        #self.appendArms(self.movePose(duration=8, pose=ArmMovement.pose_home))
 
-        self.appendArms(self.movePose(duration=6, pose=ArmMovement.pose_run_arms))
-        self.appendArms(self.movePose(duration=2, pose=ArmMovement.pose_run_arms))
+
+        self.appendArms(self.movePose(duration=3, pose=ArmMovement.pose_run_arms))
+        self.appendArms(self.movePose(duration=1, pose=ArmMovement.pose_run_arms))
+
 
         self.syncTimeline()
+        #return
 
-        sin = self.cos(0, np.pi/2, 3.0/4)
-        cos = self.cos(0, np.pi*2, 3)
-        ntimes = 3
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.6, velocity_end=0, duration=9, acc_percentage=0.2, dec_percentage=0.2))
 
-        self.appendVelArmLeft(j1=sin*-0.3, j4=sin*0.4)
+        dotime = 1.25
+        sin = self.sin(0, np.pi/2, dotime/4.0)
+        cos = self.cos(0, np.pi*2, dotime)
+        ntimes = 9
+
+        j1speed = 0.5
+        j4speed = 0.5
+        j5speed = 0.5
+        j6speed = 0.5
+
+        self.appendVelArmLeft(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
         for i in range(ntimes):
-            self.appendVelArmLeft(j1=cos*-0.3, j4=cos*0.4)
+            self.appendVelArmLeft(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
+        sin = sin[::-1]
+        self.appendVelArmLeft(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
+
+        sin = sin[::-1]
+        #sin *= -1
+        #cos *= -1
+
+        self.appendVelArmRight(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
+        for i in range(ntimes):
+            self.appendVelArmRight(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
+        sin = sin[::-1]
+        self.appendVelArmRight(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
 
         self.appendSwitchVelToGoalTimeout()
 
         self.syncTimeline()
-
-    def test_cheer_arms(self):
-        pass
-        #self.appendArms(self.movePose(duration=8, pose=ArmMovement.pose_home))
-        #self.appendArms(self.movePose(duration=8, pose=ArmMovement.pose_cheer_arms))
 
     def testBezier(self):
         #points = [[0,0], [0,1], [1,1], [1.5, 0.5], [2, 0.5], [2, 0], [1, 0.5], [1, 0],
@@ -1177,57 +1327,6 @@ class StuffToTest(BaseScene):
         self.appendTH(th)
 
         self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
-
-    def testGripRose(self):
-
-        jtp_flow_data = [list(), list()]
-
-        dotime = 8
-
-        jtp_flow_data[0].append(JTP(rel_time=dotime, **ArmMovement.pose_right_folded_back))
-        #jtp_flow_data[0].append()
-
-        jtp_flow_data[1].append(JTP(rel_time=6, **ArmMovement.pose_home))
-
-        jtp_flow_data[1].append(JTP(rel_time=6, **ArmMovement.pose_right_folded_back))
-
-        jtp_flow_data[1].append(JTP(rel_time=3, **ArmMovement.pose_right_folded_back)) ### PAUSE
-
-        #################################################
-
-        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c1))
-
-        jtp_flow_data[1].append(JTP.get_mirrored_jtp(JTP(rel_time=2, **ArmMovement.pose_boring_walk_back)))
-
-        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c2))
-
-        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c3))
-
-        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c4))
-
-
-        pargs = dict(ArmMovement.pose_grip_rose_right)
-        pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
-        jtp_flow_data[1].append(JTP(rel_time=2, **pargs))
-
-
-        ############# handle rose...
-
-
-        self.appendArms(jtp_flow_data, True)
-        self.syncTimeline()
-        jtp_flow_data = [list(), list()]
-
-        jtp_flow_data[1].append(JTP(rel_time=8, **ArmMovement.pose_folded_grip_right_c6))
-
-        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c4))
-
-        pargs = dict(ArmMovement.pose_carry_rose_front_right)
-        pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
-        jtp_flow_data[1].append(JTP(rel_time=2, **pargs))
-
-        self.appendArms(jtp_flow_data, True)
-        self.syncTimeline()
 
 
 class BoringScene(BaseScene):
@@ -1304,16 +1403,16 @@ class BoringScene(BaseScene):
 
         self.syncTimeline()
 
+
     def bridge_slender_to_window(self, dotime=2):
         self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.bridge_pose_boring_walk_c1_to_waiting_arms_side))
         #self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_waiting_arms_side))
+
 
     def to_window(self):
         self.syncTimeline()
 
         self.new_section('annaehern')
-
-
 
         self.appendX(self.acc(velocity_start=0, velocity_end=0.21, duration=0.5))
         self.appendX(self.lin(0.21, 2))
@@ -1365,6 +1464,56 @@ class BoringScene(BaseScene):
         self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=5.5))
 
         self.syncTimeline()
+
+
+class DiscoverWomen(BaseScene):
+    def __init__(self, profile):
+        super(DiscoverWomen, self).__init__(profile)
+
+    def bridge_home_to_run_away(self, dotime=6):
+        self.syncTimeline()
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_home))
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_run_arms))
+        self.syncTimeline()
+
+
+    def act_run_away(self, dotime=9):
+        self.syncTimeline()
+
+        self.appendArms(self.movePose(duration=1, pose=ArmMovement.pose_run_arms))
+
+        self.syncTimeline()
+
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.6, velocity_end=0, duration=dotime,
+                                  acc_percentage=0.2, dec_percentage=0.2))
+
+        dotime_step = 1.25
+        ntimes = int(np.ceil(dotime / dotime_step))
+
+        sin = self.sin(0, np.pi/2, dotime_step/4.0)
+        sinrev = sin[::-1]
+        cos = self.cos(0, np.pi*2, dotime_step)
+
+        j1speed = 0.5
+        j4speed = 0.5
+        j5speed = 0.5
+        j6speed = 0.5
+
+        self.appendVelArmLeft(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
+        self.appendVelArmRight(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
+
+        for i in range(ntimes):
+            self.appendVelArmLeft(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
+            self.appendVelArmRight(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
+
+        self.appendVelArmLeft(j1=sinrev*-j1speed, j4=sinrev*j4speed, j5=sinrev*j5speed, j6=sinrev*j6speed)
+        self.appendVelArmRight(j1=sinrev*-j1speed, j4=sinrev*j4speed, j5=sinrev*j5speed, j6=sinrev*j6speed)
+
+        self.syncTimeline()
+        self.appendSwitchVelToGoalTimeout()
+        self.syncTimeline()
+
+        self.appendArms(self.movePose(duration=1, pose=ArmMovement.pose_run_arms))
 
 
 class FindingRose(BaseScene):
@@ -1424,7 +1573,7 @@ class CheeringScene(BaseScene):
         self.syncTimeline()
 
 
-    def cheer_arms_up(self, dotime=1, ntimes=5):
+    def act_cheer_arms_up(self, dotime=1, ntimes=5):
 
         self.syncTimeline()
 
@@ -1494,96 +1643,19 @@ class CheeringScene(BaseScene):
         self.appendVelArm(j1=np.array([0], np.float64))
 
 
-class ServiceHandler(object):
-    def __init__(self):
-        self.is_fakerun = False
-
-        self.is_service_mode = False
-
-        self.is_plot = False
-        self.plot_map = False
-        self.plot_profile = False
-
-        self.is_ros = False
-        self.is_ros_arm_left = False
-        self.is_ros_arm_right = False
-        self.is_ros_base = False
-
-        self.init_startup_args()
-
-    def init_startup_args(self):
-        self.is_fakerun = '-fakerun' in sys.argv
-        self.is_service_mode = '-servicemode' in sys.argv
-
-        self.is_plot = '-plot' in sys.argv
-        if self.is_plot:
-            idx = sys.argv.index('-plot') + 1
-            self.plot_map = 'map' in sys.argv[idx:idx+2]
-            self.plot_profile = 'profile' in sys.argv[idx:idx+2]
-
-        self.is_ros = '-ros' in sys.argv
-        if self.is_ros:
-            idx = sys.argv.index('-ros') + 1
-            self.is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+3]
-            self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+3]
-            self.is_ros_base = 'base' in sys.argv[idx:idx+3]
-
-    def callback_creator(self, func_list, bound_timeline_object):
-        def callback_function(arg):
-            bound_timeline_object.clear_data()
-            [fnc() for fnc in func_list]
-            self.execute_timeline(bound_timeline_object, is_callback=True)
-        return callback_function
-
-    def add_service_callback(self, service_name, func_list, bound_timline_object):
-        if not isinstance(func_list, list):
-            func_list = [func_list]
-        rospy.Service(service_name, Trigger, self.callback_creator(func_list, bound_timline_object))
-
-    def do_listen(self):
-        if not self.is_service_mode:
-            PrettyOutput.attation_msg('LISTENING ONLY IN SERVICEMODE')
-            return
-        rospy.init_node('scenario')
-        rospy.spin()
-
-    def execute_timeline(self, timeline, is_callback=False):
-        if not is_callback and self.is_service_mode:
-            PrettyOutput.attation_msg('SERVICEMODE ENABLED - DIRECT EXECUTION FORBIDDEN')
-            return
-
-        if self.is_plot:
-            Plotter(timeline, plot_profile=self.plot_profile, plot_map=self.plot_map)
-
-        if self.is_ros:
-            bridge = ROSBridge(fakerun=self.is_fakerun,
-                               exec_base=self.is_ros_base,
-                               exec_arm_left=self.is_ros_arm_left,
-                               exec_arm_right=self.is_ros_arm_right)
-
-            bridge.exec_timeline(timeline)
-
 if __name__ == '__main__':
-
-    # PARSING STARTUP ARGUMENTS
-    ############################
-
-
-
-
-    # CREATE STD STUFF
-    ###################
 
     cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
 
-    cob4_2_profile = Profile(rate=50, max_linear_velocity=0.7, max_angular_velocity=2.7,
-                             max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
+    cob4_2_profile = Profile(rate=30, max_linear_velocity=0.7, max_angular_velocity=2.7,
+                             max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.4)
 
     boring = BoringScene(profile=cob4_2_profile)
     cheer = CheeringScene(profile=cob4_2_profile)
     findrose = FindingRose(profile=cob4_2_profile)
     test = StuffToTest(profile=cob4_2_profile)
+    discover = DiscoverWomen(profile=cob4_2_profile)
 
     #boring.bridge_home_to_slender()
     #boring.slender_around()
@@ -1593,7 +1665,7 @@ if __name__ == '__main__':
 
 
     #cheer.bridge_home_to_cheer_arms_up()
-    #cheer.cheer_arms_up()
+    #cheer.act_cheer_arms_up()
 
     #test.test_map()
     #test.test_speed_linear()
@@ -1602,10 +1674,10 @@ if __name__ == '__main__':
 
 
     #test.test_slender_arms()  # ok
-    test.test_run_arms()  # ok
+    #test.test_run_arms()  # ok
     #test.test_cheer_arms()  # (ok)
 
-    #test.test_rotmove_side_drive()
+    test.test_rotmove_side_drive()
 
     #test.testBezier()
 
@@ -1630,11 +1702,13 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/sc1', boring.slender_around, boring)
     sh.add_service_callback('scenario/br2', boring.bridge_slender_to_window, boring)
     sh.add_service_callback('scenario/sc2', [boring.to_window, boring.away_from_window], boring)
+    sh.add_service_callback('scenario/br4', discover.bridge_home_to_run_away, discover)
+    sh.add_service_callback('scenario/sc4', discover.act_run_away, discover)
     sh.add_service_callback('scenario/br5', findrose.bridge_home_to_grip_rose, findrose)
     sh.add_service_callback('scenario/sc5', [findrose.act_griper_to_rose, findrose.act_grip_rose, findrose.act_gripper_away_from_rose], findrose)
     sh.add_service_callback('scenario/br7', cheer.bridge_home_to_cheer_arms_up, cheer)
-    sh.add_service_callback('scenario/sc7', cheer.cheer_arms_up, cheer)
-    sh.add_service_callback('scenario/test1', test.test_run_arms, test)
+    sh.add_service_callback('scenario/sc7', cheer.act_cheer_arms_up, cheer)
+    sh.add_service_callback('scenario/test1', test.test_rotmove_side_drive, test)
 
     sh.execute_timeline(masterTimeline)
 
