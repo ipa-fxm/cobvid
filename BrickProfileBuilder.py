@@ -1634,6 +1634,7 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/sc5', [findrose.act_griper_to_rose, findrose.act_grip_rose, findrose.act_gripper_away_from_rose], findrose)
     sh.add_service_callback('scenario/br7', cheer.bridge_home_to_cheer_arms_up, cheer)
     sh.add_service_callback('scenario/sc7', cheer.cheer_arms_up, cheer)
+    sh.add_service_callback('scenario/test1', test.test_run_arms, test)
 
     sh.execute_timeline(masterTimeline)
 

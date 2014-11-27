@@ -48,4 +48,5 @@ group7:
     [(5) GRIP ROSE, trigger, sc5],
     [BRIDGE HOME -> CHEER-ARMS-UP, trigger, br7],
     [(7) CHEER-ARMS-UP, trigger, sc7],
+    [!!! TEST RUN ARMS, trigger, test1],
     ]
