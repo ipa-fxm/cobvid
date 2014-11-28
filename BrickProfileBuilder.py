@@ -37,6 +37,7 @@ from scipy.misc import comb
 # PYTHON IMPORTS
 import time
 import sys
+import os
 import string
 import operator as op
 
@@ -44,7 +45,7 @@ class PrettyOutput(object):
 
     @staticmethod
     def attation_msg(info_msg, question_msg=''):
-        length = 100
+        length = 80
         pl = list()
         cnt = 0
         while len(info_msg):
@@ -283,8 +284,6 @@ class ROSBridge(object):
         ARM_LEFT_VELOCITY_TOPIC = '/arm_left/joint_group_velocity_controller/command'
         ARM_RIGHT_VELOCITY_TOPIC = '/arm_right/joint_group_velocity_controller/command'
 
-        #if not fakerun:
-        rospy.init_node('scenario')
         queue_size = 0
 
         self.base_publisher = rospy.Publisher(BASE_CONTROLLER_TOPIC, Twist, queue_size=queue_size) \
@@ -376,7 +375,26 @@ class ServiceHandler(object):
         self.is_ros_arm_right = False
         self.is_ros_base = False
 
+        self.init_management_services()
         self.init_startup_args()
+        self.print_startup_args()
+
+    def init_management_services(self):
+        rospy.init_node('scenario')
+        rospy.Service('/scenario/restart', Trigger, self._inplace_restart)
+        rospy.Service('/scenario/status', Trigger, self.print_startup_args)
+
+        rospy.Service('/scenario/enable_fakerun', Trigger, self._enable_fakerun)
+        rospy.Service('/scenario/disable_fakerun', Trigger, self._disable_fakerun)
+
+        rospy.Service('/scenario/enable_base', Trigger, self._enable_base)
+        rospy.Service('/scenario/disable_base', Trigger, self._disable_base)
+
+        rospy.Service('/scenario/enable_arm_left', Trigger, self._enable_arm_left)
+        rospy.Service('/scenario/disable_arm_left', Trigger, self._disable_arm_left)
+
+        rospy.Service('/scenario/enable_arm_right', Trigger, self._enable_arm_right)
+        rospy.Service('/scenario/disable_arm_right', Trigger, self._disable_arm_right)
 
     def init_startup_args(self):
         self.is_fakerun = '-fakerun' in sys.argv
@@ -395,17 +413,32 @@ class ServiceHandler(object):
             self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+3]
             self.is_ros_base = 'base' in sys.argv[idx:idx+3]
 
-    def callback_creator(self, func_list, bound_timeline_object):
+    def print_startup_args(self, *_):
+        print
+        print
+        print 'FAKERUN:      ', self.is_fakerun
+        print
+        print 'SERVICE MODE: ', self.is_service_mode
+        print
+        print 'ROS ENABLED:  ', self.is_ros
+        print '    ARM_LEFT: ', self.is_ros_arm_left
+        print '    ARM RIGHT:', self.is_ros_arm_right
+        print '    BASE:     ', self.is_ros_base
+        print
+
+    def callback_creator(self, service_name, func_list, bound_timeline_object):
         def callback_function(arg):
+            PrettyOutput.attation_msg('CALLBACK TRIGGERED: %s' % service_name)
             bound_timeline_object.clear_data()
             [fnc() for fnc in func_list]
             self.execute_timeline(bound_timeline_object, is_callback=True)
+            PrettyOutput.attation_msg('END OF CALLBACK: %s' % service_name)
         return callback_function
 
     def add_service_callback(self, service_name, func_list, bound_timline_object):
         if not isinstance(func_list, list):
             func_list = [func_list]
-        rospy.Service(service_name, Trigger, self.callback_creator(func_list, bound_timline_object))
+        rospy.Service(service_name, Trigger, self.callback_creator(service_name, func_list, bound_timline_object))
 
     def do_listen(self):
         if not self.is_service_mode:
@@ -413,6 +446,75 @@ class ServiceHandler(object):
             return
         rospy.init_node('scenario')
         rospy.spin()
+
+    def _inplace_restart(self, *args):
+        for _ in range(50): print
+        PrettyOutput.attation_msg('RESTARTING APPLICATION')
+        os.execv(__file__, sys.argv)
+
+    def _enable_argv(self, argname, argvar):
+        if self.is_ros and argvar:
+            return
+
+        if self.is_ros:
+            idx = sys.argv.index('-ros')
+            sys.argv.insert(idx+1, argname)
+        else:
+            sys.argv.append('-ros')
+            sys.argv.append(argname)
+
+        self._inplace_restart()
+
+    def _disable_argv(self, argname, argvar):
+        if not argvar:
+            return
+
+        idx = sys.argv.index(argname)
+        sys.argv.pop(idx)
+
+        self.init_startup_args()
+
+        if not (self.is_ros_base or self.is_ros_arm_left or self.is_ros_arm_right):
+            idx = sys.argv.index('-ros')
+            sys.argv.pop(idx)
+
+        self._inplace_restart()
+
+    def _enable_base(self, *args):
+        self._enable_argv('base', self.is_ros_base)
+
+    def _disable_base(self, *args):
+        self._disable_argv('base', self.is_ros_base)
+
+    def _enable_fakerun(self, *args):
+        print 'FAKERUN EN'
+        if self.is_fakerun:
+            return
+
+        sys.argv.append('-fakerun')
+
+        self._inplace_restart()
+
+    def _disable_fakerun(self, *args):
+        if not self.is_fakerun:
+            return
+
+        idx = sys.argv.index('-fakerun')
+        sys.argv.pop(idx)
+
+        self._inplace_restart()
+
+    def _enable_arm_left(self, *args):
+        self._enable_argv('arm_left', self.is_ros_arm_left)
+
+    def _disable_arm_left(self, *args):
+        self._disable_argv('arm_left', self.is_ros_arm_left)
+
+    def _enable_arm_right(self, *args):
+        self._enable_argv('arm_right', self.is_ros_arm_right)
+
+    def _disable_arm_right(self, *args):
+        self._disable_argv('arm_right', self.is_ros_arm_right)
 
     def execute_timeline(self, timeline, is_callback=False):
         if not is_callback and self.is_service_mode:
@@ -1087,6 +1189,12 @@ class BaseScene(Timeline, Bricks, Bezier, ArmMovement):
     def __init__(self, profile):
             super(BaseScene, self).__init__(profile)
 
+class DummyScene(BaseScene):
+    def __init__(self, profile):
+            super(DummyScene, self).__init__(profile)
+
+    def not_yet_implemented(self):
+        PrettyOutput.attation_msg('scene not yet implemented')
 
 
 class StuffToTest(BaseScene):
@@ -1656,6 +1764,7 @@ if __name__ == '__main__':
     findrose = FindingRose(profile=cob4_2_profile)
     test = StuffToTest(profile=cob4_2_profile)
     discover = DiscoverWomen(profile=cob4_2_profile)
+    dummy = DummyScene(profile=cob4_2_profile)
 
     #boring.bridge_home_to_slender()
     #boring.slender_around()
@@ -1702,14 +1811,29 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/sc1', boring.slender_around, boring)
     sh.add_service_callback('scenario/br2', boring.bridge_slender_to_window, boring)
     sh.add_service_callback('scenario/sc2', [boring.to_window, boring.away_from_window], boring)
+    sh.add_service_callback('scenario/br3', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/sc3', dummy.not_yet_implemented, dummy)
     sh.add_service_callback('scenario/br4', discover.bridge_home_to_run_away, discover)
     sh.add_service_callback('scenario/sc4', discover.act_run_away, discover)
     sh.add_service_callback('scenario/br5', findrose.bridge_home_to_grip_rose, findrose)
     sh.add_service_callback('scenario/sc5', [findrose.act_griper_to_rose, findrose.act_grip_rose, findrose.act_gripper_away_from_rose], findrose)
+    sh.add_service_callback('scenario/br6', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/sc6', dummy.not_yet_implemented, dummy)
     sh.add_service_callback('scenario/br7', cheer.bridge_home_to_cheer_arms_up, cheer)
     sh.add_service_callback('scenario/sc7', cheer.act_cheer_arms_up, cheer)
+    sh.add_service_callback('scenario/br8', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/sc8', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/br9', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/sc9', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/br10', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/sc10', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/br11', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/sc11', dummy.not_yet_implemented, dummy)
     sh.add_service_callback('scenario/test1', test.test_rotmove_side_drive, test)
 
-    sh.execute_timeline(masterTimeline)
+    PrettyOutput.attation_msg('APPLICATION STARTED')
 
-    sh.do_listen()
+    if not sh.is_service_mode:
+        sh.execute_timeline(masterTimeline)
+    else:
+        sh.do_listen()
