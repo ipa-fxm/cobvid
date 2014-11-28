@@ -39,45 +39,49 @@ group6:
     [folded,move,folded],
     [side,move,side]]
 group7:
-  group_name: scenario
+  group_name: 'BORING / WOMEN / RUN'
   component_name: cobvid
   buttons: [
-    [BR HOME -> SLENDER, trigger ,br1],
+    ['BR -> (1) ARMS', trigger ,br1],
     [(1) SLENDER, trigger, sc1],
-    [BR SLENDER -> WINDOW, trigger, br2],
-    [(2) WINDOW, trigger, sc2],
-    ['??? BR HOME -> WOMEN', trigger, br3],
-    ['??? (3) WOMEN', trigger, sc3],
-    [BR HOME -> DISCOVER, trigger, br4],
-    [(4) RUN AWAY, trigger, sc4],
-    [BR HOME -> GRIP ROSE, trigger, br5],
+    ['BR -> (2) ARMS', trigger, br2],
+    ['(2) WINDOW', trigger, sc2],
+    ['BR -> (3)', trigger, br3],
+    ['* (3) WOMEN', trigger, sc3],
+    ['BR -> (4) ARMS', trigger, br4],
+    ['(4) RUN AWAY', trigger, sc4],
     ]
 group8:
-  group_name: scenario
+  group_name: 'ROSE / PRESENT'
   component_name: cobvid
   buttons: [
-    [BR HOME -> GRIP ROSE, trigger, br5],
-    [(5) GRIP ROSE, trigger, sc5],
-    ['??? BR HOME -> THE PRESENT', trigger, br6],
+    ['BR -> (5) RIGHT ARM', trigger, br5],
+    ['(5) GRIP ROSE', trigger, sc5],
+    ['??? BR -> (6)', trigger, br6],
     ['??? (6) THE PRESENT', trigger, sc6],
-    [BR HOME -> CHEER-ARMS-UP, trigger, br7],
-    [(7) CHEER-ARMS-UP, trigger, sc7],
-    ['??? BR HOME -> CHEER ROT', trigger, br8],
-    ['??? (8) CHEER ROT', trigger, sc8],
     ]
 group9:
-  group_name: scenario
+  group_name: 'SCENE CHEERING'
   component_name: cobvid
   buttons: [
-    ['??? BR HOME -> CHEER DRUMS', trigger, br9],
-    ['??? (9) CHEER DRUMS', trigger, sc9],
-    ['??? BR HOME -> CHEER CORNER', trigger, br10],
-    ['??? (10) CHEER CORNER', trigger, sc10],
-    ['??? BR HOME -> ENDING', trigger, br11],
+    [BR -> (7) ARMS, trigger, br7],
+    [(7) ARMS-UP, trigger, sc7],
+    ['??? BR -> (8)', trigger, br8],
+    ['??? (8) 360° ROT', trigger, sc8],
+    ['BR -> (9) ARMS', trigger, br9],
+    ['(9) DRUMS', trigger, sc9],
+    ['??? BR -> (10)', trigger, br10],
+    ['??? (10) CORNER', trigger, sc10],
+    ['??? BR -> (11)', trigger, br11],
+    ]
+group91:
+  group_name: 'SCENE'
+  component_name: cobvid
+  buttons: [
     ['??? (11) ENDING', trigger, sc11],
     ['!!! TEST !!!', trigger, test1],
     ]
-group91:
+group92:
   group_name: scenario
   component_name: cobvid
   buttons: [
