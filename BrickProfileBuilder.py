@@ -263,6 +263,8 @@ class Plotter(object):
 
 
 class ROSBridge(object):
+    ACTIVE_TASK = False
+
     class Dummy(object):
         def __init__(self, topic_name):
             self.topic_name = topic_name
@@ -321,13 +323,22 @@ class ROSBridge(object):
                 is_data_loss = bool(data_loss.sum())
 
                 info_msg = 'possible loss of data due to blocking arm velocity\'s for goal at sample %d' % (idx+1)
-                question_msq = 'EXIT APPLICATION?'
+                question_msq = 'EXIT TASK?'
                 if is_data_loss and PrettyOutput.attation_msg(info_msg, question_msq):
-                    print 'exiting...'
-                    exit()
+                    self._exit_task()
 
+    def _exit_task(self):
+        PrettyOutput.attation_msg('EXITING TASK')
+        ROSBridge.ACTIVE_TASK = False
+        exit()
 
     def exec_timeline(self, timeline):
+        if ROSBridge.ACTIVE_TASK:
+            PrettyOutput.attation_msg('ANOTHER TASK STILL RUNNING - SKIP EXECUTION OF NEW TASK')
+            return
+
+        ROSBridge.ACTIVE_TASK = True
+
         timeline.syncTimeline()
 
         self.block_arm_velocity_timeline_for_goals(timeline=timeline, arm_goal_timeline=timeline.ARML_GOAL,
@@ -359,6 +370,7 @@ class ROSBridge(object):
 
             rospy.sleep(timeline.profile.sample_time)
 
+        ROSBridge.ACTIVE_TASK = False
 
 class ServiceHandler(object):
     def __init__(self):
@@ -375,11 +387,14 @@ class ServiceHandler(object):
         self.is_ros_arm_right = False
         self.is_ros_base = False
 
-        self.init_management_services()
         self.init_startup_args()
         self.print_startup_args()
+        self.init_management_services()
 
     def init_management_services(self):
+        if not self.is_service_mode:
+            return
+
         rospy.init_node('scenario')
         rospy.Service('/scenario/restart', Trigger, self._inplace_restart)
         rospy.Service('/scenario/status', Trigger, self.print_startup_args)
@@ -444,7 +459,6 @@ class ServiceHandler(object):
         if not self.is_service_mode:
             PrettyOutput.attation_msg('LISTENING ONLY IN SERVICEMODE')
             return
-        rospy.init_node('scenario')
         rospy.spin()
 
     def _inplace_restart(self, *args):
@@ -487,7 +501,6 @@ class ServiceHandler(object):
         self._disable_argv('base', self.is_ros_base)
 
     def _enable_fakerun(self, *args):
-        print 'FAKERUN EN'
         if self.is_fakerun:
             return
 
@@ -1334,14 +1347,19 @@ class StuffToTest(BaseScene):
         self.appendY(self.lin(-lin_speed, lin_duration))
 
         self.appendVelArmLeft(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
-        self.appendVelArmRight(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
-
         for _ in range(ndrums):
             self.appendVelArmLeft(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
-            self.appendVelArmRight(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
-
         self.appendVelArmLeft(j1=sinrev*-j1speed, j4=sinrev*j4speed, j5=sinrev*j5speed, j6=sinrev*j6speed)
+
+        sin *= -1
+        sinrev *= -1
+        cos *= -1
+        self.appendVelArmRight(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
+        for _ in range(ndrums):
+            self.appendVelArmRight(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
         self.appendVelArmRight(j1=sinrev*-j1speed, j4=sinrev*j4speed, j5=sinrev*j5speed, j6=sinrev*j6speed)
+
+
 
         self.syncTimeline()
 
@@ -1446,7 +1464,7 @@ class BoringScene(BaseScene):
         self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_boring_walk_front_back_c1))
         self.syncTimeline()
 
-    def slender_around(self):
+    def slender_around_old(self):
         dotime = 10.5
         linspeed = 0.3
         steps = 2
@@ -1480,6 +1498,81 @@ class BoringScene(BaseScene):
         direction = 1 if (steps % 2) else -1
         self.appendTH(tlth_quater*direction)
 
+        self.appendX(self.acc(velocity_start=linspeed, velocity_end=0, duration=stepduration/2.0))
+
+
+
+
+        #self.appendX(tlx)
+        #
+
+
+        #self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.1, dec_percentage=0.1, duration=dotime))
+        #self.appendTH(self.lin(velocity=0, duration=1))
+
+        #self.appendTH(self.sin(0, np.pi*4/2*2, dotime)*0.7)
+
+
+
+
+        #tlx, tlth = self.circular_path(radius=0.5, phi=np.pi*3/8, duration=2.5, acc_percentage=0.4, dec_percentage=0)
+        #self.appendX(tlx)
+        #self.appendTH(tlth)
+
+        #tlx, tlth = self.circular_path(radius=-0.5, phi=-np.pi*6/8, duration=4, acc_percentage=0, dec_percentage=0)
+        #self.appendX(tlx)
+        #self.appendTH(tlth)
+
+
+
+        self.syncTimeline()
+
+    def slender_around(self):
+        dotime = 10.5
+        linspeed = 0.3
+        steps = 2
+        steps = 2
+        #dotime = 3.5 * (steps+1)
+
+
+        stepduration = dotime / (steps + 1.0)
+
+        sin = self.sin(0, np.pi/2, stepduration/4.0)
+        sinrev = sin[::-1]
+        cos = self.cos(0, np.pi*2, stepduration)
+
+        thspeed = 0.4
+        sin *= thspeed
+        cos *= thspeed
+
+        ioscale = 0.55
+
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=linspeed, duration=stepduration/2.0))
+        self.syncTimeline()
+
+        self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=steps-1))
+
+        self.appendX(self.lin(velocity=linspeed, duration=stepduration/2.0))
+
+        self.appendTH(sin*-ioscale)
+        self.appendTH(sinrev*-ioscale)
+
+        self.appendTH(sin)
+        self.appendX(self.lin(velocity=linspeed, duration=stepduration))
+
+        for i in range(steps):
+            direction = 1 if (i % 2) else -1
+            self.appendX(self.lin(velocity=linspeed, duration=stepduration))
+            self.appendTH(cos)
+
+        direction = 1 if (steps % 2) else -1
+        self.appendTH(sinrev)
+
+
+        #self.appendX(self.lin(velocity=linspeed, duration=stepduration/2.0))
+        self.appendTH(sin*-ioscale)
+        self.appendTH(sinrev*-ioscale)
 
 
         self.appendX(self.acc(velocity_start=linspeed, velocity_end=0, duration=stepduration/2.0))
@@ -1757,7 +1850,7 @@ if __name__ == '__main__':
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
 
     cob4_2_profile = Profile(rate=30, max_linear_velocity=0.7, max_angular_velocity=2.7,
-                             max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.4)
+                             max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.7  )
 
     boring = BoringScene(profile=cob4_2_profile)
     cheer = CheeringScene(profile=cob4_2_profile)
@@ -1767,7 +1860,7 @@ if __name__ == '__main__':
     dummy = DummyScene(profile=cob4_2_profile)
 
     #boring.bridge_home_to_slender()
-    #boring.slender_around()
+    boring.slender_around()
     #boring.bridge_slender_to_window()
     #boring.to_window()
     #boring.away_from_window()
