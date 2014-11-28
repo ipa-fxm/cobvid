@@ -66,12 +66,12 @@ group9:
   buttons: [
     [BR -> (7) ARMS, trigger, br7],
     [(7) ARMS-UP, trigger, sc7],
-    ['??? BR -> (8)', trigger, br8],
-    ['??? (8) 360° ROT', trigger, sc8],
+    ['BR -> (8)', trigger, br8],
+    ['(8) 360° ROT', trigger, sc8],
     ['BR -> (9) ARMS', trigger, br9],
     ['(9) DRUMS', trigger, sc9],
     ['??? BR -> (10)', trigger, br10],
-    ['??? (10) CORNER', trigger, sc10],
+    ['(10) CORNER', trigger, sc10],
     ['??? BR -> (11)', trigger, br11],
     ]
 group91:

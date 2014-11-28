@@ -733,23 +733,6 @@ class Bezier(object):
 
         xvals, yvals = self.bezier_curve(points, nTimes=nSamples)
 
-        #startsample = 0
-        #endsample = 100
-
-        #tsamp = np.linspace(startsample+1, endsample-1, self.calc_samples(1)-1)
-
-        #scale = ((np.cos(np.pi * tsamp / endsample)+1)/2.0)[::-1]
-
-
-        #xvals[startsample+1:endsample] *= scale
-        #yvals[startsample+1:endsample] *= scale
-
-        '''
-        xdiff = np.array([0])
-        ydiff = np.array([0])
-        xdiff = np.append(xdiff, np.diff(xvals))
-        ydiff = np.append(ydiff, np.diff(yvals))
-        '''
         xdiff = np.diff(xvals)
         ydiff = np.diff(yvals)
 
@@ -939,9 +922,9 @@ class ArmMovement(object):
                      'p5': np.radians(40), 'p6': np.radians(20)}
 
 
-    pose_cheer_arms = {'p1': np.radians(-172), 'p2': np.radians(-83),
-                       'p3': np.radians(115), 'p4': np.radians(100),
-                       'p5': np.radians(0), 'p6': np.radians(20)}
+    pose_cheer_arms_up = {'p1': np.radians(-172), 'p2': np.radians(-83),
+                          'p3': np.radians(115), 'p4': np.radians(100),
+                          'p5': np.radians(0), 'p6': np.radians(20)}
 
     bridge_pose_boring_walk_c1_to_waiting_arms_side = {'p1': np.radians(-75), 'p2': np.radians(-72),
                                                        'p3': np.radians(103), 'p4': np.radians(92),
@@ -992,6 +975,9 @@ class ArmMovement(object):
                        'p3': 1.97, 'p4': 1.37,
                        'p5': 0, 'p6': 0.18}
 
+    pose_cheer_turn = {'p1': -4.13, 'p2': -1.20,
+                       'p3': 2.64, 'p4': 1.17,
+                       'p5': 0, 'p6': 0.35}
 
 
     def __init__(self, profile):
@@ -1372,7 +1358,7 @@ class BoringScene_1_2_3(BaseScene):
         dotime = 10.5
         linspeed = 0.3
         steps = 2
-        steps = 2
+        steps = 1
         #dotime = 3.5 * (steps+1)
 
 
@@ -1529,7 +1515,16 @@ class BoringScene_1_2_3(BaseScene):
         self.syncTimeline()
 
     def act_3_move_corner_shock(self):
-        pass
+        self.syncTimeline()
+
+        steps = 3
+
+        self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=steps-1))
+
+
+
+        self.syncTimeline()
+
 
 class RunAwayScene_4(BaseScene):
     def __init__(self, profile):
@@ -1630,14 +1625,14 @@ class CheeringScene_7_8_9_10(BaseScene):
         super(CheeringScene_7_8_9_10, self).__init__(profile)
 
     def bridge_act_7_arms_startpos(self, dotime=8):
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_cheer_arms))
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_cheer_arms_up))
         self.syncTimeline()
 
-    def act_7_cheer_arms_up(self, dotime=1, ntimes=5):
+    def act_7_cheer_arms_up(self, lin_speed=0.5, dotime=1, ntimes=5):
 
         self.syncTimeline()
 
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, duration=10))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=lin_speed, velocity_end=0, duration=10))
 
         dotime = 1
 
@@ -1701,6 +1696,44 @@ class CheeringScene_7_8_9_10(BaseScene):
         self.syncTimeline()
 
         self.appendVelArm(j1=np.array([0], np.float64))
+
+    def bridge_act_8_arms_startpos(self, dotime=8):
+        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_cheer_arms_up))
+
+        self.syncTimeline()
+
+
+    def act_8_cheering_turn(self, lin_speed=0.55, acctime=1.5, phi=np.pi*2, rot_duration=8, arm_duration=2.75):
+
+        arm_sleep = rot_duration - arm_duration * 2
+        assert arm_sleep >= 0
+
+        arm_sleep_samples = int(self.calc_samples(arm_sleep))
+
+
+        self.syncTimeline()
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=lin_speed, duration=acctime))
+
+        self.syncTimeline()
+
+        self.appendArms(self.movePose(duration=arm_duration, pose=ArmMovement.pose_cheer_turn))
+
+        tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=lin_speed, velocity_start_y=0, phi=phi, duration=rot_duration)
+        self.appendX(tlx)
+        self.appendY(tly)
+        self.appendTH(tlth)
+
+        fill_data = [None]*arm_sleep_samples
+        self.ARML_GOAL.extend(fill_data)
+        self.ARMR_GOAL.extend(fill_data)
+
+        self.appendArms(self.movePose(duration=arm_duration, pose=ArmMovement.pose_cheer_arms_up))
+
+
+        self.appendX(self.acc(velocity_start=lin_speed, velocity_end=0, duration=acctime))
+
+        self.syncTimeline()
 
 
     def bridge_act_9_arms_startpos(self, dotime=8):
@@ -1773,9 +1806,9 @@ class CheeringScene_7_8_9_10(BaseScene):
             self.appendVelArmLeft(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
         self.appendVelArmLeft(j1=sinrev*-j1speed, j4=sinrev*j4speed, j5=sinrev*j5speed, j6=sinrev*j6speed)
 
-        sin *= -1
-        sinrev *= -1
-        cos *= -1
+        #sin *= -1
+        #sinrev *= -1
+        #cos *= -1
         self.appendVelArmRight(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
         for _ in range(ndrums):
             self.appendVelArmRight(j1=cos*-j1speed, j4=cos*j4speed, j5=cos*j5speed, j6=cos*j6speed)
@@ -1798,6 +1831,34 @@ class CheeringScene_7_8_9_10(BaseScene):
         self.appendX(self.lin(lin_speed, post_lin_duration))
 
         self.appendX(self.acc(velocity_start=lin_speed, velocity_end=0, duration=acc_duration))
+
+    def act_10_corner_rotation(self, duration=16):
+
+        points = [[0,0], [4,0], [1,2]]
+        points = np.array(points, np.float)
+        x, th = self.createBezier(points, duration=duration)
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=x[0], duration=1))
+        self.syncTimeline()
+
+
+        _, tlth = self.circular_path(radius=0, phi=-np.pi*2, duration=duration, acc_percentage=0.2, dec_percentage=0.2)
+        tlth = tlth[1:-1]
+        thover = th + tlth
+
+        absphi = integrate.cumtrapz(tlth*self.profile.sample_time, initial=0)
+        absphi = np.append(absphi, np.array([0]))
+
+        absphi *= np.pi*2/np.abs(absphi).max()
+
+        xvel = x * np.cos(absphi)
+        yvel = x * -np.sin(absphi)
+
+        self.appendX(xvel)
+        self.appendY(yvel)
+        self.appendTH(thover)
+
+        self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
 
 
 if __name__ == '__main__':
@@ -1824,7 +1885,9 @@ if __name__ == '__main__':
 
     #cheer.bridge_act_7_arms_startpos()
     #cheer.act_7_cheer_arms_up()
-
+    #cheer.act_8_cheering_turn()
+    #cheer.act_9_drumming_rotmove_side_drive()
+    cheer.act_10_corner_rotation()
     #test.test_map()
     #test.test_speed_linear()
     #test.test_speed_angular()
@@ -1851,9 +1914,9 @@ if __name__ == '__main__':
     # SETTING MASTER TIMELINE
     ##########################
 
-    masterTimeline = test
+    #masterTimeline = test
     #masterTimeline = boring
-    #masterTimeline = cheer
+    masterTimeline = cheer
 
     sh = ServiceHandler()
     sh.add_service_callback('scenario/br1', boring.bridge_act_1_arms_startpos, boring)
@@ -1869,14 +1932,16 @@ if __name__ == '__main__':
                                              findrose.act_5_3_gripper_away_from_rose, findrose.act_5_4_drive_away], findrose)
     sh.add_service_callback('scenario/br6', dummy.not_yet_implemented, dummy)
     sh.add_service_callback('scenario/sc6', dummy.not_yet_implemented, dummy)
+
     sh.add_service_callback('scenario/br7', cheer.bridge_act_7_arms_startpos, cheer)
     sh.add_service_callback('scenario/sc7', cheer.act_7_cheer_arms_up, cheer)
-    sh.add_service_callback('scenario/br8', dummy.not_yet_implemented, dummy)
-    sh.add_service_callback('scenario/sc8', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/br8', cheer.bridge_act_8_arms_startpos, cheer)
+    sh.add_service_callback('scenario/sc8', cheer.act_8_cheering_turn, cheer)
     sh.add_service_callback('scenario/br9', cheer.bridge_act_9_arms_startpos, cheer)
     sh.add_service_callback('scenario/sc9', cheer.act_9_drumming_rotmove_side_drive, cheer)
     sh.add_service_callback('scenario/br10', dummy.not_yet_implemented, dummy)
-    sh.add_service_callback('scenario/sc10', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/sc10', cheer.act_10_corner_rotation, cheer)
+
     sh.add_service_callback('scenario/br11', dummy.not_yet_implemented, dummy)
     sh.add_service_callback('scenario/sc11', dummy.not_yet_implemented, dummy)
     #sh.add_service_callback('scenario/test1', test.test_rotmove_side_drive, test)
