@@ -57,8 +57,8 @@ group8:
   buttons: [
     ['BR -> (5) RIGHT ARM', trigger, br5],
     ['(5) GRIP ROSE', trigger, sc5],
-    ['??? BR -> (6)', trigger, br6],
-    ['??? (6) THE PRESENT', trigger, sc6],
+    ['BR -> (6) RIGHT ARM', trigger, br6],
+    ['(6) THE PRESENT', trigger, sc6],
     ]
 group9:
   group_name: 'SCENE CHEERING'
