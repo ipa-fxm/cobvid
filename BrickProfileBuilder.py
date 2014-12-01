@@ -947,28 +947,32 @@ class ArmMovement(object):
                                  'p5': np.radians(14), 'p6': np.radians(-90)}
 
     pose_folded_grip_right_c2 = {'p1': 1.59, 'p2': 1.12,
-                                 'p3': -1.70, 'p4': -2,
+                                 'p3': -1.70, 'p4': -1.5,
                                  'p5': 0, 'p6': -1.08}
 
     pose_folded_grip_right_c3 = {'p1': 2.34, 'p2': 1.20,
-                                 'p3': -2.45, 'p4': -1.8,
-                                 'p5': 0.38, 'p6': -0.5}
+                                 'p3': -2.0, 'p4': -1.7,
+                                 'p5': 0.38, 'p6': -0.75}
 
     pose_folded_grip_right_c4 = {'p1': 3.14, 'p2': 1.66,
-                                 'p3': -1.93, 'p4': -1.37,
-                                 'p5': 0.31, 'p6': 1.0}
+                                 'p3': -1.93, 'p4': -1.73,
+                                 'p5': 0.31, 'p6': 1.37,
+                                 'p7': 1.0}
 
-    pose_grip_rose_right = {'p1': 3.38, 'p2': 1.83,
+    pose_grip_rose_right = {'p1': 3.46, 'p2': 1.83,
                                  'p3': -1.93, 'p4': -0.45,
-                                 'p5': 0.31, 'p6': 0.55}
+                                 'p5': 0.31, 'p6': 0.55,
+                                 'p7': 1.0}
 
-    pose_folded_grip_right_c6 = {'p1': 3.57, 'p2': 1.83,
+    pose_folded_grip_right_c6 = {'p1': 3.7, 'p2': 1.83,
                                  'p3': -1.93, 'p4': -0.20,
-                                 'p5': 0.31, 'p6': 0.13}
+                                 'p5': 0.31, 'p6': -0.13,
+                                 'p7': 1.0}
 
-    pose_carry_rose_front_right = {'p1': 2.34, 'p2': 1.20,
-                             'p3': -2.45, 'p4': -1.96,
-                             'p5': 0.38, 'p6': 0.59}
+    pose_carry_rose_front_right = {'p1': 2.34, 'p2': 1.35,
+                                   'p3': -2.69, 'p4': -1.96,
+                                   'p5': 0.38, 'p6': 0.59,
+                                   'p7': 1.0}
 
 
     pose_cheer_drum = {'p1': -2.8, 'p2': -1.39,
@@ -978,6 +982,12 @@ class ArmMovement(object):
     pose_cheer_turn = {'p1': -4.13, 'p2': -1.20,
                        'p3': 2.64, 'p4': 1.17,
                        'p5': 0, 'p6': 0.35}
+
+    pose_present_give_rose_right = {'p1': 2.91, 'p2': 1.50,
+                                    'p3': -2.39, 'p4': -1.28,
+                                    'p5': 0.62, 'p6': 0.59,
+                                    'p7': 1.0,
+                                    'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
 
     def __init__(self, profile):
@@ -1360,6 +1370,15 @@ class StuffToTest(BaseScene):
 
         self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
 
+    def tmp_pose(self):
+
+        jtp_flow_data = [list(), list()]
+
+        jtp_flow_data[1].append(JTP(rel_time=2.5, **ArmMovement.pose_folded_grip_right_c4))
+
+        self.appendArms(jtp_flow_data, True)
+        self.syncTimeline()
+
 
 class BoringScene_1_2_3(BaseScene):
     def __init__(self, profile):
@@ -1612,6 +1631,47 @@ class RunAwayScene_4(BaseScene):
         self.appendArms(self.movePose(duration=1, pose=ArmMovement.pose_run_arms))
 
 
+class ThePresentScene_6(BaseScene):
+    def __init__(self, profile):
+        super(ThePresentScene_6, self).__init__(profile)
+
+    def bridge_act_6_arm_right_startpos(self, dotime=8):
+        jtp_flow_data = [list(), list()]
+        jtp_flow_data[1].append(JTP(rel_time=dotime, **ArmMovement.pose_carry_rose_front_right))
+        self.appendArms(jtp_flow_data, True)
+        self.syncTimeline()
+
+    def act_6_give_rose(self, velocity=0.4, lin_duration=4, acc_duration=1.5, wait_duration=1):
+
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=velocity, duration=acc_duration))
+        self.appendX(self.lin(velocity=velocity, duration=lin_duration))
+
+        self.syncTimeline()
+
+        jtp_flow_data = [list(), list()]
+        jtp_flow_data[1].append(JTP(rel_time=acc_duration*3, **ArmMovement.pose_present_give_rose_right))
+        self.appendArms(jtp_flow_data, True)
+
+        self.appendX(self.acc(velocity_start=velocity, velocity_end=0, duration=acc_duration*3))
+
+
+        # waiting...
+        self.appendX(self.lin(velocity=0, duration=wait_duration))
+
+        #go back...
+        self.syncTimeline()
+        self.appendX(self.acc(velocity_start=0, velocity_end=-velocity, duration=acc_duration*3))
+
+        jtp_flow_data = [list(), list()]
+        jtp_flow_data[1].append(JTP(rel_time=acc_duration*3, **ArmMovement.pose_carry_rose_front_right))
+        self.appendArms(jtp_flow_data, True)
+
+        self.appendX(self.lin(velocity=-velocity, duration=lin_duration))
+        self.appendX(self.acc(velocity_start=-velocity, velocity_end=0, duration=acc_duration))
+
+
+
 class FindingRose_5(BaseScene):
     def __init__(self, profile):
         super(FindingRose_5, self).__init__(profile)
@@ -1625,11 +1685,11 @@ class FindingRose_5(BaseScene):
     def act_5_1_griper_to_rose(self):
         jtp_flow_data = [list(), list()]
 
-        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c1))
-        jtp_flow_data[1].append(JTP.get_mirrored_jtp(JTP(rel_time=2, **ArmMovement.pose_boring_walk_back)))
-        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c2))
-        jtp_flow_data[1].append(JTP(rel_time=1.5, **ArmMovement.pose_folded_grip_right_c3))
-        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c4))
+        jtp_flow_data[1].append(JTP(rel_time=1.75, **ArmMovement.pose_folded_grip_right_c1))
+        jtp_flow_data[1].append(JTP(rel_time=2.75, **ArmMovement.pose_folded_grip_right_c2))
+        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c3))
+        jtp_flow_data[1].append(JTP(rel_time=2.5, **ArmMovement.pose_folded_grip_right_c4))
+
 
         pargs = dict(ArmMovement.pose_grip_rose_right)
         pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
@@ -1643,20 +1703,37 @@ class FindingRose_5(BaseScene):
         pass
 
     def act_5_3_gripper_away_from_rose(self):
+
         jtp_flow_data = [list(), list()]
 
         jtp_flow_data[1].append(JTP(rel_time=2, **ArmMovement.pose_folded_grip_right_c6))
-        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c4))
+        jtp_flow_data[1].append(JTP(rel_time=2, **ArmMovement.pose_folded_grip_right_c4))
 
         pargs = dict(ArmMovement.pose_carry_rose_front_right)
         pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
         jtp_flow_data[1].append(JTP(rel_time=2, **pargs))
 
         self.appendArms(jtp_flow_data, True)
-        self.syncTimeline()
+        #self.syncTimeline()
 
     def act_5_4_drive_away(self):
-        pass
+        sleeptime = 1.5
+        self.appendX(self.lin(velocity=0, duration=sleeptime))
+        self.appendY(self.lin(velocity=0, duration=sleeptime))
+        self.appendTH(self.lin(velocity=0, duration=sleeptime))
+
+
+        self.appendY(self.lin(velocity=0, duration=0.5))
+        self.appendY(self.lin_acc(velocity_start=0, velocity_lin=0.15, velocity_end=0, acc_percentage=0.3, dec_percentage=0.3, duration=3.5))
+
+        self.appendTH(self.lin_acc(velocity_start=0, velocity_lin=0.7, velocity_end=0, acc_percentage=0.35, dec_percentage=0.25, duration=5))
+
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=-0.08, velocity_end=0, acc_percentage=0.7, dec_percentage=0.3, duration=1.5))
+
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=10.5))
+
+
+        self.syncTimeline()
 
 class CheeringScene_7_8_9_10(BaseScene):
     def __init__(self, profile):
@@ -1926,6 +2003,8 @@ if __name__ == '__main__':
     test = StuffToTest(profile=cob4_2_profile)
     discover = RunAwayScene_4(profile=cob4_2_profile)
     dummy = DummyScene(profile=cob4_2_profile)
+    present = ThePresentScene_6(profile=cob4_2_profile)
+
 
     #boring.bridge_act_1_arms_startpos()
     #boring.act_1_slender_around()
@@ -1938,7 +2017,7 @@ if __name__ == '__main__':
     #cheer.act_7_cheer_arms_up()
     #cheer.act_8_cheering_turn()
     #cheer.act_9_drumming_rotmove_side_drive()
-    cheer.act_10_corner_rotation()
+    #cheer.act_10_corner_rotation()
     #test.test_map()
     #test.test_speed_linear()
     #test.test_speed_angular()
@@ -1959,15 +2038,21 @@ if __name__ == '__main__':
     #boring.appendReversePath()
     #test.appendReversePath()
 
-    #test.testGripRose()
+    #findrose.act_5_1_griper_to_rose()
+    #findrose.act_5_2_grip_rose()
+    #findrose.act_5_3_gripper_away_from_rose()
+    #findrose.act_5_4_drive_away()
 
+    present.act_6_give_rose()
 
     # SETTING MASTER TIMELINE
     ##########################
 
     #masterTimeline = test
     #masterTimeline = boring
-    masterTimeline = cheer
+    #masterTimeline = cheer
+    #masterTimeline = findrose
+    masterTimeline = present
 
     sh = ServiceHandler()
     sh.add_service_callback('scenario/br1', boring.bridge_act_1_arms_startpos, boring)
@@ -1981,8 +2066,8 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/br5', findrose.bridge_act_5_arm_right_startpos, findrose)
     sh.add_service_callback('scenario/sc5', [findrose.act_5_1_griper_to_rose, findrose.act_5_2_grip_rose,
                                              findrose.act_5_3_gripper_away_from_rose, findrose.act_5_4_drive_away], findrose)
-    sh.add_service_callback('scenario/br6', dummy.not_yet_implemented, dummy)
-    sh.add_service_callback('scenario/sc6', dummy.not_yet_implemented, dummy)
+    sh.add_service_callback('scenario/br6', present.bridge_act_6_arm_right_startpos, present)
+    sh.add_service_callback('scenario/sc6', present.act_6_give_rose, present)
 
     sh.add_service_callback('scenario/br7', cheer.bridge_act_7_arms_startpos, cheer)
     sh.add_service_callback('scenario/sc7', cheer.act_7_cheer_arms_up, cheer)
@@ -1995,7 +2080,7 @@ if __name__ == '__main__':
 
     sh.add_service_callback('scenario/br11', dummy.not_yet_implemented, dummy)
     sh.add_service_callback('scenario/sc11', dummy.not_yet_implemented, dummy)
-    #sh.add_service_callback('scenario/test1', test.test_rotmove_side_drive, test)
+    sh.add_service_callback('scenario/test1', test.tmp_pose, test)
 
     PrettyOutput.attation_msg('APPLICATION STARTED')
 
