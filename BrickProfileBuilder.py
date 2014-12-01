@@ -938,8 +938,8 @@ class ArmMovement(object):
     # ROSE GREIFEN
 
     pose_right_folded_back = {'p1': np.radians(55), 'p2': np.radians(90),
-                              'p3': np.radians(0), 'p4': np.radians(80),
-                              'p5': np.radians(55), 'p6': np.radians(40)}
+                              'p3': np.radians(0), 'p4': np.radians(63),
+                              'p5': np.radians(83), 'p6': np.radians(40)}
 
 
     pose_folded_grip_right_c1 = {'p1': np.radians(57), 'p2': np.radians(96),
@@ -971,9 +971,9 @@ class ArmMovement(object):
                              'p5': 0.38, 'p6': 0.59}
 
 
-    pose_cheer_drum = {'p1': -2.37, 'p2': -1.39,
+    pose_cheer_drum = {'p1': -2.8, 'p2': -1.39,
                        'p3': 1.97, 'p4': 1.37,
-                       'p5': 0, 'p6': 0.18}
+                       'p5': 0, 'p6': -0.18}
 
     pose_cheer_turn = {'p1': -4.13, 'p2': -1.20,
                        'p3': 2.64, 'p4': 1.17,
@@ -1169,7 +1169,22 @@ class Bricks(object):
         return v_t, th_t
 
     def const_direction_rotation(self, velocity_start_x, velocity_start_y, phi, duration):
-        _, tlth = self.circular_path(radius=0, phi=phi, duration=duration, acc_percentage=0.2, dec_percentage=0.2)
+        tlx_, tlth = self.circular_path(radius=1, phi=phi, duration=duration, acc_percentage=0.2, dec_percentage=0.2)
+
+
+        absphi = integrate.cumtrapz(tlth*self.profile.sample_time)
+        absphi = np.append(absphi, np.array([0]))
+
+        tlx = velocity_start_x * np.cos(absphi) - velocity_start_y * np.sin(absphi)
+        tly = velocity_start_x * -np.sin(absphi) + velocity_start_y * np.cos(absphi)
+
+        #if phi > 0:
+        #    tly *= -1
+        #if phi < 0:
+        #    tlx *= -1
+
+        return tlx, tly, tlth
+
 
         cos_scale = self.cos(start=0, stop=phi, duration=duration)
         sin_scale = self.sin(start=0, stop=phi, duration=duration)
@@ -1355,30 +1370,39 @@ class BoringScene_1_2_3(BaseScene):
         self.syncTimeline()
 
     def act_1_slender_around(self):
-        dotime = 10.5
+        #dotime = 17
+
+
         linspeed = 0.3
         steps = 2
-        steps = 1
-        #dotime = 3.5 * (steps+1)
-
+        steps = 2
+        dotime = 3.5 * (steps+1) * 2
+        print dotime
 
         stepduration = dotime / (steps + 1.0)
+
+        print stepduration
 
         sin = self.sin(0, np.pi/2, stepduration/4.0)
         sinrev = sin[::-1]
         cos = self.cos(0, np.pi*2, stepduration)
 
         thspeed = 0.4
-        sin *= thspeed
+        sin *= thspeed  
         cos *= thspeed
 
         ioscale = 0.55
 
 
-        self.appendX(self.acc(velocity_start=0, velocity_end=linspeed, duration=stepduration/2.0))
+        self.appendX(self.lin(velocity=0, duration=stepduration/2.0))
+
         self.syncTimeline()
 
-        self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=steps-1))
+        self.appendX(self.acc(velocity_start=0, velocity_end=linspeed, duration=stepduration/2.0))
+
+        self.syncTimelineBase()
+
+        self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=steps*2))
 
         self.appendX(self.lin(velocity=linspeed, duration=stepduration/2.0))
 
@@ -1453,16 +1477,17 @@ class BoringScene_1_2_3(BaseScene):
         #self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_waiting_arms_side))
         self.syncTimeline()
 
-    def act_2_1_to_window(self):
+    def act_2_1_to_window(self, radius=-2.5, radius_dotime=20):
         self.syncTimeline()
 
         self.new_section('annaehern')
 
-        self.appendX(self.acc(velocity_start=0, velocity_end=0.21, duration=0.5))
-        self.appendX(self.lin(0.21, 2))
+        tlx, tlth = self.circular_path(radius=radius, phi=-np.pi*7/16, duration=radius_dotime, acc_percentage=0, dec_percentage=0.5)
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=tlx[0], duration=1))
+        self.appendX(self.lin(tlx[0], 2))
 
         self.new_section('ausrichtung fenster')
-        tlx, tlth = self.circular_path(radius=-1, phi=-np.pi/2, duration=10, acc_percentage=0, dec_percentage=0.5)
         self.appendX(tlx)
         self.appendTH(tlth)
 
@@ -1482,7 +1507,7 @@ class BoringScene_1_2_3(BaseScene):
         self.appendX(self.lin(duration=1, velocity=0))
         self.syncTimeline()
 
-        tlx, tlth = self.circular_path(radius=0, phi=np.pi/2, duration=5, acc_percentage=0.4, dec_percentage=0.5)
+        tlx, tlth = self.circular_path(radius=0, phi=np.pi/2, duration=6, acc_percentage=0.4, dec_percentage=0.5)
         self.appendX(tlx)
         self.appendTH(tlth)
         self.syncTimeline()
@@ -1505,7 +1530,8 @@ class BoringScene_1_2_3(BaseScene):
         self.appendTH(self.lin_acc(velocity_start=0, velocity_lin=0.55, velocity_end=0, acc_percentage=0.35, dec_percentage=0.25, duration=5))
 
         self.appendX(self.lin_acc(velocity_start=0, velocity_lin=-0.08, velocity_end=0, acc_percentage=0.7, dec_percentage=0.3, duration=1.5))
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=5.5))
+
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=10.5))
 
         self.syncTimeline()
 
@@ -1517,10 +1543,22 @@ class BoringScene_1_2_3(BaseScene):
     def act_3_move_corner_shock(self):
         self.syncTimeline()
 
-        steps = 3
+        steps = 2
+
 
         self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=steps-1))
 
+        tlx, tlth = self.circular_path(radius=-1.5, phi=-np.radians(90), duration=16, dec_percentage=0.05)
+        self.appendX(tlx)
+        self.appendTH(tlth)
+
+
+        tlx, tlth = self.circular_path(radius=0, phi=-np.radians(45), duration=1, acc_percentage=0.5 ,dec_percentage=0.5)
+        self.appendX(tlx)
+        self.appendTH(tlth)
+
+
+        self.appendArms(self.movePose(duration=1.75, pose=ArmMovement.pose_boring_walk_front_back_c1))
 
 
         self.syncTimeline()
@@ -1535,7 +1573,7 @@ class RunAwayScene_4(BaseScene):
         self.syncTimeline()
 
 
-    def act_4_run_away(self, dotime=9):
+    def act_4_run_away(self, dotime=15):
         self.syncTimeline()
 
         self.appendArms(self.movePose(duration=1, pose=ArmMovement.pose_run_arms))
@@ -1607,7 +1645,7 @@ class FindingRose_5(BaseScene):
     def act_5_3_gripper_away_from_rose(self):
         jtp_flow_data = [list(), list()]
 
-        jtp_flow_data[1].append(JTP(rel_time=8, **ArmMovement.pose_folded_grip_right_c6))
+        jtp_flow_data[1].append(JTP(rel_time=2, **ArmMovement.pose_folded_grip_right_c6))
         jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c4))
 
         pargs = dict(ArmMovement.pose_carry_rose_front_right)
@@ -1628,11 +1666,13 @@ class CheeringScene_7_8_9_10(BaseScene):
         self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_cheer_arms_up))
         self.syncTimeline()
 
-    def act_7_cheer_arms_up(self, lin_speed=0.5, dotime=1, ntimes=5):
+    def act_7_cheer_arms_up(self, lin_speed=0.5, dotime=1, ntimes=8):
 
         self.syncTimeline()
 
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=lin_speed, velocity_end=0, duration=10))
+        lintime = dotime * 2 * ntimes
+
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=lin_speed, velocity_end=0, duration=lintime))
 
         dotime = 1
 
@@ -1697,6 +1737,16 @@ class CheeringScene_7_8_9_10(BaseScene):
 
         self.appendVelArm(j1=np.array([0], np.float64))
 
+        self.syncTimeline()
+
+        self.appendSwitchVelToGoalTimeout()
+
+        self.syncTimeline()
+
+        self.appendArms(self.movePose(duration=4, pose=ArmMovement.pose_cheer_arms_up))
+
+        self.syncTimeline()
+
     def bridge_act_8_arms_startpos(self, dotime=8):
         self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_cheer_arms_up))
 
@@ -1738,17 +1788,18 @@ class CheeringScene_7_8_9_10(BaseScene):
 
     def bridge_act_9_arms_startpos(self, dotime=8):
         self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_run_arms))
+        #self.appendArms(self.movePose(duration=dotime/2, pose=ArmMovement.pose_cheer_drum))
 
 
-    def act_9_drumming_rotmove_side_drive(self, lin_speed=0.25, acc_duration=1, rot_duration=2, ndrums=1,
-                                pre_lin_duration=2, post_lin_duration=2):
+    def act_9_drumming_rotmove_side_drive(self, lin_speed=0.25, acc_duration=1, rot_duration=2, ndrums=3,
+                                pre_lin_duration=3, post_lin_duration=3):
 
 
         # SETUP
         ########
 
         phi = np.pi / 2
-        goto_drum_pose_duration = 3.5
+        goto_drum_pose_duration = 4.5
 
         pre_ld1 = pre_lin_duration - (goto_drum_pose_duration - rot_duration)
         pre_ld2 = goto_drum_pose_duration - rot_duration
@@ -1834,7 +1885,7 @@ class CheeringScene_7_8_9_10(BaseScene):
 
     def act_10_corner_rotation(self, duration=16):
 
-        points = [[0,0], [4,0], [1,2]]
+        points = [[0, 0], [4, 0], [1, 3]]
         points = np.array(points, np.float)
         x, th = self.createBezier(points, duration=duration)
 
@@ -1877,11 +1928,11 @@ if __name__ == '__main__':
     dummy = DummyScene(profile=cob4_2_profile)
 
     #boring.bridge_act_1_arms_startpos()
-    boring.act_1_slender_around()
+    #boring.act_1_slender_around()
     #boring.bridge_act_2_arms_startpos()
     #boring.act_2_1_to_window()
     #boring.act_2_2_away_from_window()
-
+    #boring.act_3_move_corner_shock()
 
     #cheer.bridge_act_7_arms_startpos()
     #cheer.act_7_cheer_arms_up()
