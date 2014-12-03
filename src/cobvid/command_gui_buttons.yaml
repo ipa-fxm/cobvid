@@ -4,12 +4,12 @@
 #  buttons: [[button_name1,function_name1,parameter_name2,
 #    [button_name2,function_name2,parameter_name2]]
 
-group1:
-  group_name: base
-  component_name: base
-  buttons: [[stop,stop,omni],
-    [init,trigger,init],
-    [recover,trigger,recover]]
+#group1:
+#  group_name: base
+#  component_name: base
+#  buttons: [[stop,stop,omni],
+#    [init,trigger,init],
+#    [recover,trigger,recover]]
 group4:
   group_name: sensorring
   component_name: sensorring
@@ -79,20 +79,30 @@ group91:
   buttons: [
     ['??? BR -> (11)', trigger, br11],
     ['??? (11) ENDING', trigger, sc11],
-    ['!!! TEST !!!', trigger, test1],
+    ['!!! TEST MIMIC !!!', trigger, test1],
+    ['!!! TEST LED !!!', trigger, test2],
     ]
 group92:
-  group_name: scenario
+  group_name: 'ENABLE CTRL'
   component_name: cobvid
   buttons: [
     ['restart', trigger, restart],
+    ['FAKERUN', trigger, enable_fakerun],
+    ['BASE', trigger, enable_base],
+    ['ARM LEFT', trigger, enable_arm_left],
+    ['ARM RIGHT', trigger, enable_arm_right],
+    ['MIMIC', trigger, enable_mimic],
+    ['LED', trigger, enable_led],
+    ]
+group93:
+  group_name: 'DISABLE CTRL'
+  component_name: cobvid
+  buttons: [
     ['status', trigger, status],
-    ['fakerun enable', trigger, enable_fakerun],
-    ['base enable', trigger, enable_base],
-    ['arm left enable', trigger, enable_arm_left],
-    ['arm right enable', trigger, enable_arm_right],
-    ['fakerun disable', trigger, disable_fakerun],
-    ['base disable', trigger, disable_base],
-    ['arm left disable', trigger, disable_arm_left],
-    ['arm right disable', trigger, disable_arm_right],
+    ['FAKERUN', trigger, disable_fakerun],
+    ['BASE', trigger, disable_base],
+    ['ARM LEFT', trigger, disable_arm_left],
+    ['ARM RIGHT', trigger, disable_arm_right],
+    ['MIMIC', trigger, disable_mimic],
+    ['LED', trigger, disable_led],
     ]
