@@ -72,12 +72,12 @@ group9:
     ['(9) DRUMS', trigger, sc9],
     ['??? BR -> (10)', trigger, br10],
     ['(10) CORNER', trigger, sc10],
-    ['??? BR -> (11)', trigger, br11],
     ]
 group91:
   group_name: 'SCENE'
   component_name: cobvid
   buttons: [
+    ['??? BR -> (11)', trigger, br11],
     ['??? (11) ENDING', trigger, sc11],
     ['!!! TEST !!!', trigger, test1],
     ]

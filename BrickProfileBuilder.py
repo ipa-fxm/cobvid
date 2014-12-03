@@ -7,6 +7,9 @@ import roslib
 try:
     isLive=True
     roslib.load_manifest('cobvid')
+    from cob_srvs.srv import Trigger
+    from cob_mimic.srv import SetMimic
+
 except:
     isLive=False
     print
@@ -26,7 +29,6 @@ from control_msgs.msg import FollowJointTrajectoryGoal
 from trajectory_msgs.msg import JointTrajectoryPoint
 from std_msgs.msg import Float64MultiArray
 from actionlib_msgs.msg import GoalStatus
-from cob_srvs.srv import Trigger
 
 # IMPORT FOR CALCULATIONS
 import numpy as np
@@ -142,8 +144,6 @@ class Plotter(object):
         accwarn1 = np.abs(self.timeline.TLX) > self.timeline.profile.max_linear_velocity
         accwarn2 = np.abs(self.timeline.TLY) > self.timeline.profile.max_linear_velocity
         accwarn3 = np.abs(self.timeline.TLTH) > self.timeline.profile.max_angular_velocity
-        accwarn = np.logical_or(accwarn1, accwarn2)
-        accwarn = np.logical_or(accwarn, accwarn3)
 
         collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_velocity, ymax=self.timeline.profile.max_linear_velocity, where=accwarn1, facecolor='blue', alpha=0.2)
         ax2.add_collection(collection)
@@ -171,8 +171,6 @@ class Plotter(object):
         accwarn1 = np.abs(self.TLXA) > self.timeline.profile.max_linear_acceleration
         accwarn2 = np.abs(self.TLYA) > self.timeline.profile.max_linear_acceleration
         accwarn3 = np.abs(self.TLTHA) > self.timeline.profile.max_angular_acceleration
-        accwarn = np.logical_or(accwarn1, accwarn2)
-        accwarn = np.logical_or(accwarn, accwarn3)
 
         collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_acceleration, ymax=self.timeline.profile.max_linear_acceleration, where=accwarn1, facecolor='blue', alpha=0.2)
         ax3.add_collection(collection)
@@ -276,11 +274,15 @@ class ROSBridge(object):
             print 'FAKE: %s_%s:   %s' % (self.topic_name, 'LEFT' if is_left_arm else 'RIGHT', jtp_list)
             return 1
 
+        def param_call(self, *args):
+            print 'FAKE: %s:   %s' % (self.topic_name, args)
 
-    def __init__(self, fakerun=False, exec_base=False, exec_arm_left=False, exec_arm_right=False):
+    def __init__(self, fakerun=False, exec_base=False, exec_arm_left=False, exec_arm_right=False, exec_mimic=False, exec_led=False):
         self.exec_base = exec_base
         self.exec_arm_left = exec_arm_left
         self.exec_arm_right = exec_arm_right
+        self.exec_mimic = exec_mimic
+        self.exec_led = exec_led
 
         BASE_CONTROLLER_TOPIC = '/base_controller/command_direct'
         ARM_LEFT_VELOCITY_TOPIC = '/arm_left/joint_group_velocity_controller/command'
@@ -296,6 +298,12 @@ class ROSBridge(object):
 
         self.arm_right_velocity_publisher = rospy.Publisher(ARM_RIGHT_VELOCITY_TOPIC, Float64MultiArray, queue_size=queue_size) \
             if not fakerun and isLive and exec_arm_right else ROSBridge.Dummy('ARM_RIGHT')
+
+        if not fakerun and isLive and exec_mimic:
+            rospy.wait_for_service('mimic')
+            self.mimic_call = rospy.ServiceProxy('mimic', SetMimic)
+        else:
+            self.mimic_call = ROSBridge.Dummy('MIMIC').param_call
 
         if not fakerun and isLive:
             self.synchronous_trajectory = SynchronousTrajectory(init_arm_left=self.exec_arm_left, init_arm_right=self.exec_arm_right)
@@ -368,6 +376,12 @@ class ROSBridge(object):
                                    synchronous_trajectory=self.synchronous_trajectory,
                                    publisher=self.arm_right_velocity_publisher)
 
+            if self.exec_mimic and timeline.MIMIC[step] is not None:
+                self.mimic_call(timeline.MIMIC[step])
+
+            if self.exec_led and timeline.LED[step] is not None:
+                print timeline.LED[step]
+
             rospy.sleep(timeline.profile.sample_time)
 
         ROSBridge.ACTIVE_TASK = False
@@ -386,6 +400,8 @@ class ServiceHandler(object):
         self.is_ros_arm_left = False
         self.is_ros_arm_right = False
         self.is_ros_base = False
+        self.is_ros_mimic = False
+        self.is_ros_led = False
 
         self.init_startup_args()
         self.print_startup_args()
@@ -423,10 +439,14 @@ class ServiceHandler(object):
 
         self.is_ros = '-ros' in sys.argv
         if self.is_ros:
+            n_ros_params = 5
             idx = sys.argv.index('-ros') + 1
-            self.is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+3]
-            self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+3]
-            self.is_ros_base = 'base' in sys.argv[idx:idx+3]
+            self.is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+n_ros_params]
+            self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+n_ros_params]
+            self.is_ros_base = 'base' in sys.argv[idx:idx+n_ros_params]
+            self.is_ros_mimic = 'mimic' in sys.argv[idx:idx+n_ros_params]
+            self.is_ros_led = 'led' in sys.argv[idx:idx+n_ros_params]
+
 
     def print_startup_args(self, *_):
         print
@@ -440,6 +460,9 @@ class ServiceHandler(object):
         print '    ARM RIGHT:', self.is_ros_arm_right
         print '    BASE:     ', self.is_ros_base
         print
+        print '    MIMIC:    ', self.is_ros_mimic
+        print '    LED:      ', self.is_ros_led
+        print
 
     def callback_creator(self, service_name, func_list, bound_timeline_object):
         def callback_function(_):
@@ -451,8 +474,12 @@ class ServiceHandler(object):
         return callback_function
 
     def add_service_callback(self, service_name, func_list, bound_timline_object):
+        if not self.is_service_mode:
+            return
+
         if not isinstance(func_list, list):
             func_list = [func_list]
+
         rospy.Service(service_name, Trigger, self.callback_creator(service_name, func_list, bound_timline_object))
 
     def do_listen(self):
@@ -541,7 +568,9 @@ class ServiceHandler(object):
             bridge = ROSBridge(fakerun=self.is_fakerun,
                                exec_base=self.is_ros_base,
                                exec_arm_left=self.is_ros_arm_left,
-                               exec_arm_right=self.is_ros_arm_right)
+                               exec_arm_right=self.is_ros_arm_right,
+                               exec_mimic=self.is_ros_mimic,
+                               exec_led=self.is_ros_led)
 
             bridge.exec_timeline(timeline)
 
@@ -568,6 +597,8 @@ class Timeline(object):
         self.ARMR_GOAL = None
         self.ARML_VEL = None
         self.ARMR_VEL = None
+        self.MIMIC = None
+        self.LED = None
         self.SECTIONS = None
 
         self.clear_data()
@@ -580,6 +611,8 @@ class Timeline(object):
         self.ARMR_GOAL = list()
         self.ARML_VEL = np.ndarray((0, 8), np.float64)
         self.ARMR_VEL = np.ndarray((0, 8), np.float64)
+        self.MIMIC = list()
+        self.LED = list()
         self.SECTIONS = list()
 
 
@@ -637,6 +670,9 @@ class Timeline(object):
         self.appendVelArmLeft(j1=data)
         self.appendVelArmRight(j1=data)
 
+    def appendMimic(self, name='default', speed=0.0, repeat=0):
+        self.MIMIC.append(name)
+
     def _createVelArmData(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
         joints = [j1, j2, j3, j4, j5, j6, j7]
         filled_joints = [jn for jn in joints if jn is not None]
@@ -658,6 +694,8 @@ class Timeline(object):
         self.syncTimelineBase()
         self.syncTimelineArmVelocity()
         self.syncTimelineArmGoal()
+        self.syncTimelineMimic()
+        self.syncTimelineLed()
 
     def syncTimelineBase(self):
         self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float64], 0, self.TLX, self.TLY, self.TLTH)
@@ -667,6 +705,12 @@ class Timeline(object):
 
     def syncTimelineArmGoal(self):
         self.ARML_GOAL, self.ARMR_GOAL = self._evenMaxSamples(self._generatePythonList, [None], 0, self.ARML_GOAL, self.ARMR_GOAL)
+
+    def syncTimelineMimic(self):
+        self.MIMIC = self._evenMaxSamples(self._generatePythonList, [None], 0, self.MIMIC)
+
+    def syncTimelineLed(self):
+        self.LED = self._evenMaxSamples(self._generatePythonList, [None], 0, self.LED)
 
     def _generatePythonList(self, max_samples, *args):
         return list(args)*max_samples
@@ -684,7 +728,7 @@ class Timeline(object):
             elif isinstance(args[idx], list):
                 args[idx].extend(fill_data)
 
-        return args
+        return args if len(args) > 1 else args[0]
 
     def get_max_length_from_timelines(self):
         timelines = [self.TLX, self.TLY, self.TLTH, self.ARML_GOAL, self.ARMR_GOAL, self.ARML_VEL, self.ARMR_VEL]
@@ -993,66 +1037,7 @@ class ArmMovement(object):
     def __init__(self, profile):
         self.profile = profile
 
-        '''
-        self.pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
-                          'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
-        #self.pose_cross_arms_behind = {'p1': np.radians(-40), 'p2': np.radians(-65),
-        #                               'p3': np.radians(170), 'p4': np.radians(70)}
-
-        #self.pose_relaxed_arms_side = {'p1': np.radians(-55), 'p2': np.radians(-60),
-        #                               'p3': np.radians(90), 'p4': np.radians(70)}
-
-
-        self.pose_right_folded_back = {'p1': np.radians(-45), 'p2': np.radians(90),
-                                       'p3': np.radians(0), 'p4': np.radians(80),
-                                       'p5': np.radians(45), 'p6': np.radians(40)}
-
-        self.pose_folded_grip_right_c1_old = {'p1': np.radians(14), 'p2': np.radians(90),
-                                          'p3': np.radians(63), 'p4': np.radians(85),
-                                          'p5': np.radians(14), 'p6': np.radians(12)}
-
-
-        self.pose_folded_grip_right_c1 = {'p1': np.radians(57), 'p2': np.radians(96),
-                                          'p3': np.radians(-17), 'p4': np.radians(0),
-                                          'p5': np.radians(14), 'p6': np.radians(-90)}
-
-
-
-        self.pose_folded_grip_right_c2_old = {'p1': np.radians(20), 'p2': np.radians(85),
-                                          'p3': np.radians(90), 'p4': np.radians(89),
-                                          'p5': np.radians(11), 'p6': np.radians(15)}
-
-
-        self.pose_folded_grip_right_c2 = {  'p1': np.radians(86), 'p2': np.radians(80),
-                                          'p3': np.radians(-62), 'p4': np.radians(-115),
-                                          'p5': np.radians(0), 'p6': np.radians(0)}
-
-
-        self.pose_folded_grip_right_c3_old = {'p1': np.radians(45), 'p2': np.radians(75),
-                                          'p3': np.radians(100), 'p4': np.radians(130),
-                                          'p5': np.radians(0), 'p6': np.radians(0)}
-
-        self.pose_folded_grip_right_c4_old = {'p1': np.radians(135), 'p2': np.radians(65),
-                                          'p3': np.radians(100), 'p4': np.radians(130),
-                                          'p5': np.radians(0), 'p6': np.radians(0)}
-
-        #self.pose_boring_walk_front2 = {'p1': np.radians(-110), 'p2': np.radians(-75),
-        #                               'p3': np.radians(147), 'p4': np.radians(90),
-        #                               'p5': np.radians(60), 'p6': np.radians(40)}
-
-        self.pose_waiting_arms_side = {'p1': np.radians(-45), 'p2': np.radians(-60),
-                                       'p3': np.radians(105), 'p4': np.radians(90),
-                                       'p5': np.radians(10), 'p6': np.radians(50)}
-
-        #self.pose_boring_walk_front = {'p1': np.radians(-80), 'p2': np.radians(-60),
-        #                               'p3': np.radians(110), 'p4': np.radians(80),
-        #         'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
-
-        #self.pose_marsh_walk_front = {'p1': np.radians(-100), 'p2': np.radians(-60),
-        #                              'p3': np.radians(130), 'p4': np.radians(90)}
-
-        '''
     def movePose(self, pose, duration=4):
         jtp_list_left = list()
 
@@ -1062,27 +1047,6 @@ class ArmMovement(object):
         return jtp_list_left, jtp_list_right
 
 
-    def boring_movement_variant(self):
-        back_left =      {'p1': np.radians(35),  'p2': np.radians(-65), 'p3':  np.radians(89),  'p4': np.radians(60)}
-        norm_left =      {'p1': np.radians(55),  'p2': np.radians(-58), 'p3':  np.radians(90),  'p4': np.radians(70)}
-        norm_front_cp1 = {'p1': np.radians(85),  'p2': np.radians(-54), 'p3': np.radians(130),  'p4': np.radians(74)}
-        front_left =     {'p1': np.radians(120), 'p2': np.radians(-65), 'p3': np.radians(160),  'p4': np.radians(75)}
-
-        time_delta = 2
-        jtp_list_left = list()
-        #jtp_list_left.append(JTP(rel_time=8))
-        jtp_list_left.append(JTP(rel_time=6, **norm_left))
-        for i in range(4):
-            jtp_list_left.append(JTP(rel_time=time_delta, **back_left))
-            jtp_list_left.append(JTP(rel_time=time_delta, **norm_left))
-            jtp_list_left.append(JTP(rel_time=time_delta, **norm_front_cp1))
-            jtp_list_left.append(JTP(rel_time=time_delta, **front_left))
-            jtp_list_left.append(JTP(rel_time=time_delta, **norm_front_cp1))
-            jtp_list_left.append(JTP(rel_time=time_delta, **norm_left))
-
-        return jtp_list_left, list()
-
-    #todo: rename... nad/or recover old
     def movePoseSplit(self, pose_list_left, pose_list_right, duration=4, times=1):
         assert len(pose_list_left) == len(pose_list_right)
 
@@ -1098,6 +1062,7 @@ class ArmMovement(object):
         jtp_list_right = JTP.get_mirrored_jtp_list(jtp_list_right)
 
         return jtp_list_left, jtp_list_right
+
 
     def buildSlenderArms(self, dotime_step, times):
 
@@ -1188,10 +1153,10 @@ class Bricks(object):
         tlx = velocity_start_x * np.cos(absphi) - velocity_start_y * np.sin(absphi)
         tly = velocity_start_x * -np.sin(absphi) + velocity_start_y * np.cos(absphi)
 
-        #if phi > 0:
-        #    tly *= -1
-        #if phi < 0:
-        #    tlx *= -1
+        print velocity_start_x, velocity_start_y
+
+        if velocity_start_y < 0:
+            tlx *= -1
 
         return tlx, tly, tlth
 
@@ -1391,6 +1356,7 @@ class BoringScene_1_2_3(BaseScene):
     def act_1_slender_around(self):
         #dotime = 17
 
+        self.appendMimic('default')
 
         linspeed = 0.3
         steps = 2
@@ -1631,50 +1597,9 @@ class RunAwayScene_4(BaseScene):
         self.appendArms(self.movePose(duration=1, pose=ArmMovement.pose_run_arms))
 
 
-class ThePresentScene_6(BaseScene):
+class FindingRoseScene_5(BaseScene):
     def __init__(self, profile):
-        super(ThePresentScene_6, self).__init__(profile)
-
-    def bridge_act_6_arm_right_startpos(self, dotime=8):
-        jtp_flow_data = [list(), list()]
-        jtp_flow_data[1].append(JTP(rel_time=dotime, **ArmMovement.pose_carry_rose_front_right))
-        self.appendArms(jtp_flow_data, True)
-        self.syncTimeline()
-
-    def act_6_give_rose(self, velocity=0.4, lin_duration=4, acc_duration=1.5, wait_duration=1):
-
-
-        self.appendX(self.acc(velocity_start=0, velocity_end=velocity, duration=acc_duration))
-        self.appendX(self.lin(velocity=velocity, duration=lin_duration))
-
-        self.syncTimeline()
-
-        jtp_flow_data = [list(), list()]
-        jtp_flow_data[1].append(JTP(rel_time=acc_duration*3, **ArmMovement.pose_present_give_rose_right))
-        self.appendArms(jtp_flow_data, True)
-
-        self.appendX(self.acc(velocity_start=velocity, velocity_end=0, duration=acc_duration*3))
-
-
-        # waiting...
-        self.appendX(self.lin(velocity=0, duration=wait_duration))
-
-        #go back...
-        self.syncTimeline()
-        self.appendX(self.acc(velocity_start=0, velocity_end=-velocity, duration=acc_duration*3))
-
-        jtp_flow_data = [list(), list()]
-        jtp_flow_data[1].append(JTP(rel_time=acc_duration*3, **ArmMovement.pose_carry_rose_front_right))
-        self.appendArms(jtp_flow_data, True)
-
-        self.appendX(self.lin(velocity=-velocity, duration=lin_duration))
-        self.appendX(self.acc(velocity_start=-velocity, velocity_end=0, duration=acc_duration))
-
-
-
-class FindingRose_5(BaseScene):
-    def __init__(self, profile):
-        super(FindingRose_5, self).__init__(profile)
+        super(FindingRoseScene_5, self).__init__(profile)
 
     def bridge_act_5_arm_right_startpos(self, dotime=8):
         jtp_flow_data = [list(), list()]
@@ -1734,6 +1659,47 @@ class FindingRose_5(BaseScene):
 
 
         self.syncTimeline()
+
+
+class ThePresentScene_6(BaseScene):
+    def __init__(self, profile):
+        super(ThePresentScene_6, self).__init__(profile)
+
+    def bridge_act_6_arm_right_startpos(self, dotime=8):
+        jtp_flow_data = [list(), list()]
+        jtp_flow_data[1].append(JTP(rel_time=dotime, **ArmMovement.pose_carry_rose_front_right))
+        self.appendArms(jtp_flow_data, True)
+        self.syncTimeline()
+
+    def act_6_give_rose(self, velocity=0.4, lin_duration=4, acc_duration=1.5, wait_duration=1):
+
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=velocity, duration=acc_duration))
+        self.appendX(self.lin(velocity=velocity, duration=lin_duration))
+
+        self.syncTimeline()
+
+        jtp_flow_data = [list(), list()]
+        jtp_flow_data[1].append(JTP(rel_time=acc_duration*3, **ArmMovement.pose_present_give_rose_right))
+        self.appendArms(jtp_flow_data, True)
+
+        self.appendX(self.acc(velocity_start=velocity, velocity_end=0, duration=acc_duration*3))
+
+
+        # waiting...
+        self.appendX(self.lin(velocity=0, duration=wait_duration))
+
+        #go back...
+        self.syncTimeline()
+        self.appendX(self.acc(velocity_start=0, velocity_end=-velocity, duration=acc_duration*3))
+
+        jtp_flow_data = [list(), list()]
+        jtp_flow_data[1].append(JTP(rel_time=acc_duration*3, **ArmMovement.pose_carry_rose_front_right))
+        self.appendArms(jtp_flow_data, True)
+
+        self.appendX(self.lin(velocity=-velocity, duration=lin_duration))
+        self.appendX(self.acc(velocity_start=-velocity, velocity_end=0, duration=acc_duration))
+
 
 class CheeringScene_7_8_9_10(BaseScene):
     def __init__(self, profile):
@@ -1989,6 +1955,11 @@ class CheeringScene_7_8_9_10(BaseScene):
         self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
 
 
+class EndingScene_11(BaseScene):
+    def __init__(self, profile):
+        super(EndingScene_11, self).__init__(profile)
+
+
 if __name__ == '__main__':
 
     cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
@@ -1997,62 +1968,67 @@ if __name__ == '__main__':
     cob4_2_profile = Profile(rate=30, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.7  )
 
-    boring = BoringScene_1_2_3(profile=cob4_2_profile)
-    cheer = CheeringScene_7_8_9_10(profile=cob4_2_profile)
-    findrose = FindingRose_5(profile=cob4_2_profile)
-    test = StuffToTest(profile=cob4_2_profile)
-    discover = RunAwayScene_4(profile=cob4_2_profile)
     dummy = DummyScene(profile=cob4_2_profile)
+
+    boring = BoringScene_1_2_3(profile=cob4_2_profile)
+    discover = RunAwayScene_4(profile=cob4_2_profile)
+    findrose = FindingRoseScene_5(profile=cob4_2_profile)
     present = ThePresentScene_6(profile=cob4_2_profile)
+    cheer = CheeringScene_7_8_9_10(profile=cob4_2_profile)
+    ending = EndingScene_11(profile=cob4_2_profile)
+
+    test = StuffToTest(profile=cob4_2_profile)
 
 
     #boring.bridge_act_1_arms_startpos()
-    #boring.act_1_slender_around()
+    boring.act_1_slender_around()
     #boring.bridge_act_2_arms_startpos()
     #boring.act_2_1_to_window()
     #boring.act_2_2_away_from_window()
     #boring.act_3_move_corner_shock()
 
-    #cheer.bridge_act_7_arms_startpos()
-    #cheer.act_7_cheer_arms_up()
-    #cheer.act_8_cheering_turn()
-    #cheer.act_9_drumming_rotmove_side_drive()
-    #cheer.act_10_corner_rotation()
-    #test.test_map()
-    #test.test_speed_linear()
-    #test.test_speed_angular()
-    #test.test_speed_circula_path()
-
-
-    #test.test_slender_arms()  # ok
-    #test.test_run_arms()  # ok
-    #test.test_cheer_arms()  # (ok)
-
-    #test.test_rotmove_side_drive()
-
-    #test.testBezier()
-
-
-
-
-    #boring.appendReversePath()
-    #test.appendReversePath()
+    #discover.act_4_run_away()
 
     #findrose.act_5_1_griper_to_rose()
     #findrose.act_5_2_grip_rose()
     #findrose.act_5_3_gripper_away_from_rose()
     #findrose.act_5_4_drive_away()
 
-    present.act_6_give_rose()
+    #present.act_6_give_rose
+
+    #cheer.bridge_act_7_arms_startpos()
+    #cheer.act_7_cheer_arms_up()
+
+    #cheer.act_8_cheering_turn()
+
+    #cheer.act_9_drumming_rotmove_side_drive()
+
+    #cheer.act_10_corner_rotation()
+
+
+
+    #test.test_map()
+    #test.test_speed_linear()
+    #test.test_speed_angular()
+    #test.test_speed_circula_path()
+
+    #test.testBezier()
+
+
+    #boring.appendReversePath()
+    #test.appendReversePath()
+
+    #present.act_6_give_rose()
 
     # SETTING MASTER TIMELINE
     ##########################
 
-    #masterTimeline = test
-    #masterTimeline = boring
-    #masterTimeline = cheer
+    masterTimeline = boring
+    #masterTimeline = discover
     #masterTimeline = findrose
-    masterTimeline = present
+    #masterTimeline = present
+    #masterTimeline = cheer
+    #masterTimeline = test
 
     sh = ServiceHandler()
     sh.add_service_callback('scenario/br1', boring.bridge_act_1_arms_startpos, boring)
