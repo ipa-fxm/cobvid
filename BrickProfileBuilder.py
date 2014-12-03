@@ -8,7 +8,9 @@ try:
     isLive=True
     roslib.load_manifest('cobvid')
     from cob_srvs.srv import Trigger
-    from cob_mimic.srv import SetMimic
+    from cob_mimic.srv import SetMimic, SetMimicRequest
+    from cob_light.srv import SetLightMode, SetLightModeRequest
+
 
 except:
     isLive=False
@@ -44,6 +46,11 @@ import string
 import operator as op
 
 class PrettyOutput(object):
+
+    @staticmethod
+    def init_exit_msg(module_name):
+        if PrettyOutput.attation_msg('CAN NOT INITIALIZE %s' % module_name, 'EXIT TASK?'):
+            ROSBridge._exit_task()
 
     @staticmethod
     def attation_msg(info_msg, question_msg=''):
@@ -277,7 +284,7 @@ class ROSBridge(object):
         def param_call(self, *args):
             print 'FAKE: %s:   %s' % (self.topic_name, args)
 
-    def __init__(self, fakerun=False, exec_base=False, exec_arm_left=False, exec_arm_right=False, exec_mimic=False, exec_led=False):
+    def __init__(self, fakerun=False, exec_base=False, exec_arm_left=False, exec_arm_right=False, exec_mimic=False, exec_led=False, timeout=5):
         self.exec_base = exec_base
         self.exec_arm_left = exec_arm_left
         self.exec_arm_right = exec_arm_right
@@ -287,26 +294,48 @@ class ROSBridge(object):
         BASE_CONTROLLER_TOPIC = '/base_controller/command_direct'
         ARM_LEFT_VELOCITY_TOPIC = '/arm_left/joint_group_velocity_controller/command'
         ARM_RIGHT_VELOCITY_TOPIC = '/arm_right/joint_group_velocity_controller/command'
+        MIMIC_SERVICE_TOPIC = 'mimic'
+        LED_SERVICE_TOPIC = 'light_controller/mode'
 
         queue_size = 0
 
+        # BASE
         self.base_publisher = rospy.Publisher(BASE_CONTROLLER_TOPIC, Twist, queue_size=queue_size) \
             if not fakerun and isLive and exec_base else ROSBridge.Dummy('BASE')
 
+        # LEFT ARM VELOCITY
         self.arm_left_velocity_publisher = rospy.Publisher(ARM_LEFT_VELOCITY_TOPIC, Float64MultiArray, queue_size=queue_size) \
             if not fakerun and isLive and exec_arm_left else ROSBridge.Dummy('ARM_LEFT')
 
+        # RIGHT ARM VELOCITY
         self.arm_right_velocity_publisher = rospy.Publisher(ARM_RIGHT_VELOCITY_TOPIC, Float64MultiArray, queue_size=queue_size) \
             if not fakerun and isLive and exec_arm_right else ROSBridge.Dummy('ARM_RIGHT')
 
+        # MIMIC
         if not fakerun and isLive and exec_mimic:
-            rospy.wait_for_service('mimic')
-            self.mimic_call = rospy.ServiceProxy('mimic', SetMimic)
+            try:
+                rospy.wait_for_service(MIMIC_SERVICE_TOPIC, timeout=timeout)
+            except rospy.ROSException:
+                PrettyOutput.init_exit_msg('MIMIC')
+
+            self.mimic_call = rospy.ServiceProxy(MIMIC_SERVICE_TOPIC, SetMimic)
         else:
             self.mimic_call = ROSBridge.Dummy('MIMIC').param_call
 
+        # LEDs
+        if not fakerun and isLive and exec_led:
+            try:
+                rospy.wait_for_service(LED_SERVICE_TOPIC, timeout=timeout)
+            except rospy.ROSException:
+                PrettyOutput.init_exit_msg('LEDs')
+
+            self.led_call = rospy.ServiceProxy(LED_SERVICE_TOPIC, SetLightMode)
+        else:
+            self.led_call = ROSBridge.Dummy('LED').param_call
+
+        # LEFT / RIGHT TRAJECTORY GOALS
         if not fakerun and isLive:
-            self.synchronous_trajectory = SynchronousTrajectory(init_arm_left=self.exec_arm_left, init_arm_right=self.exec_arm_right)
+            self.synchronous_trajectory = SynchronousTrajectory(init_arm_left=self.exec_arm_left, init_arm_right=self.exec_arm_right, timeout=timeout)
         else:
             self.synchronous_trajectory = ROSBridge.Dummy('ARM_GOAL')
 
@@ -335,7 +364,8 @@ class ROSBridge(object):
                 if is_data_loss and PrettyOutput.attation_msg(info_msg, question_msq):
                     self._exit_task()
 
-    def _exit_task(self):
+    @staticmethod
+    def _exit_task():
         PrettyOutput.attation_msg('EXITING TASK')
         ROSBridge.ACTIVE_TASK = False
         exit()
@@ -354,6 +384,8 @@ class ROSBridge(object):
 
         self.block_arm_velocity_timeline_for_goals(timeline=timeline, arm_goal_timeline=timeline.ARMR_GOAL,
                                                    arm_velocity_timeline=timeline.ARMR_VEL)
+
+        PrettyOutput.attation_msg('TIMELINE STARTING...')
 
         for step in range(timeline.get_max_length_from_timelines()):
             if self.exec_base:
@@ -380,7 +412,7 @@ class ROSBridge(object):
                 self.mimic_call(timeline.MIMIC[step])
 
             if self.exec_led and timeline.LED[step] is not None:
-                print timeline.LED[step]
+                self.led_call(timeline.LED[step])
 
             rospy.sleep(timeline.profile.sample_time)
 
@@ -671,7 +703,17 @@ class Timeline(object):
         self.appendVelArmRight(j1=data)
 
     def appendMimic(self, name='default', speed=0.0, repeat=0):
-        self.MIMIC.append(name)
+        self.MIMIC.append(SetMimicRequest(name, speed, repeat))
+
+    def appendLed(self, r=0, g=1, b=0.7, a=0.4, frequency=0.2, mode=3):
+        lmr = SetLightModeRequest()
+        lmr.mode.mode = mode
+        lmr.mode.color.r = r
+        lmr.mode.color.g = g
+        lmr.mode.color.b = b
+        lmr.mode.color.a = a
+        lmr.mode.frequency = frequency
+        self.LED.append(lmr)
 
     def _createVelArmData(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
         joints = [j1, j2, j3, j4, j5, j6, j7]
@@ -890,18 +932,16 @@ class SynchronousTrajectory():
         self.goal_status_dict = self._resolve_goal_stats_codes()
 
         if init_arm_left:
-            self.action_client_left = actionlib.SimpleActionClient(ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
+            self.action_client_left = actionlib.SimpleActionClient(ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC,
+                                                                   FollowJointTrajectoryAction)
             if not self.action_client_left.wait_for_server(timeout=rospy.Duration(timeout)):
-                if PrettyOutput.attation_msg('CAN NOT INITIALIZE LEFT ARM', 'EXIT APPLICATION?'):
-                    print 'exiting...'
-                    exit()
+                PrettyOutput.init_exit_msg('LEFT ARM')
 
         if init_arm_right:
-            self.action_client_right = actionlib.SimpleActionClient(ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC, FollowJointTrajectoryAction)
+            self.action_client_right = actionlib.SimpleActionClient(ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC,
+                                                                    FollowJointTrajectoryAction)
             if not self.action_client_right.wait_for_server(timeout=rospy.Duration(timeout)):
-                if PrettyOutput.attation_msg('CAN NOT INITIALIZE RIGHT ARM', 'EXIT APPLICATION?'):
-                    print 'exiting...'
-                    exit()
+                PrettyOutput.init_exit_msg('RIGHT ARM')
 
     def _resolve_goal_stats_codes(self):
         CODENAMES = [code for code in dir(GoalStatus) if not code.startswith('_') and code[0] in string.ascii_uppercase]
@@ -1342,6 +1382,25 @@ class StuffToTest(BaseScene):
         jtp_flow_data[1].append(JTP(rel_time=2.5, **ArmMovement.pose_folded_grip_right_c4))
 
         self.appendArms(jtp_flow_data, True)
+        self.syncTimeline()
+
+    def mimic(self):
+
+        self.appendMimic('happy')
+        self.appendX(self.lin(velocity=0, duration=5))
+        self.syncTimeline()
+
+        self.appendMimic()
+        self.appendX(self.lin(velocity=0, duration=0.1))
+        self.syncTimeline()
+
+    def led(self):
+        self.appendLed(1, 0, 0, mode=1)
+        self.appendX(self.lin(velocity=0, duration=0.5))
+        self.syncTimeline()
+
+        self.appendLed()
+        self.appendX(self.lin(velocity=0, duration=0.1))
         self.syncTimeline()
 
 
@@ -2056,7 +2115,7 @@ if __name__ == '__main__':
 
     sh.add_service_callback('scenario/br11', dummy.not_yet_implemented, dummy)
     sh.add_service_callback('scenario/sc11', dummy.not_yet_implemented, dummy)
-    sh.add_service_callback('scenario/test1', test.tmp_pose, test)
+    sh.add_service_callback('scenario/test1', test.mimic, test)
 
     PrettyOutput.attation_msg('APPLICATION STARTED')
 
