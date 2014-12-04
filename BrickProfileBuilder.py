@@ -309,6 +309,12 @@ class ROSBridge(object):
         MIMIC_SERVICE_TOPIC = 'mimic'
         LED_SERVICE_TOPIC = 'light_controller/mode'
 
+        GRIPPER_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/gripper_left/joint_trajectory_controller/follow_joint_trajectory'
+        GRIPPER_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/gripper_right/joint_trajectory_controller/follow_joint_trajectory'
+
+        ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/arm_left/joint_trajectory_controller/follow_joint_trajectory'
+        ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/arm_right/joint_trajectory_controller/follow_joint_trajectory'
+
         queue_size = 0
 
         # BASE
@@ -345,8 +351,40 @@ class ROSBridge(object):
         else:
             self.led_call = ROSBridge.Dummy('LED').param_call
 
+        '''
+        if not fakerun and isLive:
+            joint_names = [pattern % ('left', idx+1) for idx, pattern in enumerate(['arm_%s_%d_joint']*7)]
+            self.new_st_arm_left = NewSynchronousTrajectory(logic_name='ARM LEFT GOAL',
+                                                            joint_trajectory_topic=ARM_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC,
+                                                            joint_names=joint_names, do_init=exec_arm_left, timeout=timeout)
+
+            joint_names = [pattern % ('right', idx+1) for idx, pattern in enumerate(['arm_%s_%d_joint']*7)]
+            self.new_st_arm_right = NewSynchronousTrajectory(logic_name='ARM RIGHT GOAL',
+                                                             joint_trajectory_topic=ARM_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC,
+                                                             joint_names=joint_names, do_init=exec_arm_right, timeout=timeout)
+
+            direction = 'left'
+            joint_names = [joint_name % direction for joint_name in ['gripper_%s_proximal', 'gripper_%s_distal']]
+            self.new_st_gripper_left = NewSynchronousTrajectory(logic_name='GRIPPER LEFT',
+                                                                joint_trajectory_topic=GRIPPER_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC,
+                                                                joint_names=joint_names, do_init=exec_gripper_left, timeout=timeout)
+
+            direction = 'right'
+            joint_names = [joint_name % direction for joint_name in ['gripper_%s_proximal', 'gripper_%s_distal']]
+            self.new_st_gripper_right = NewSynchronousTrajectory(logic_name='GRIPPER RIGHT',
+                                                                 joint_trajectory_topic=GRIPPER_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC,
+                                                                 joint_names=joint_names, do_init=exec_gripper_right, timeout=timeout)
+
+        else:
+            self.new_st_arm_left = ROSBridge.Dummy('ARM LEFT GOAL')
+            self.new_st_arm_right = ROSBridge.Dummy('ARM RIGHT GOAL')
+            self.new_st_gripper_left = ROSBridge.Dummy('GRIPPER LEFT GOAL')
+            self.new_st_gripper_right = ROSBridge.Dummy('GRIPPER RIGHT GOAL')
+
+        '''
         # LEFT / RIGHT TRAJECTORY GOALS
         if not fakerun and isLive:
+
             self.synchronous_trajectory = SynchronousTrajectory(init_arm_left=self.exec_arm_left, init_arm_right=self.exec_arm_right, timeout=timeout)
         else:
             self.synchronous_trajectory = ROSBridge.Dummy('ARM_GOAL')
@@ -356,10 +394,14 @@ class ROSBridge(object):
         else:
             self.synchronous_gripper_trajectory = ROSBridge.Dummy('GRIPPER_GOAL')
 
+
     def _exec_gripper(self, timeline, gripper_goal_timeline, is_left_gripper, step, synchronous_trajectory):
         if gripper_goal_timeline[step] is not None:
             print 'FOO'
             synchronous_trajectory.send_jtp_list(gripper_goal_timeline[step], is_left_gripper=is_left_gripper)
+
+    def _exec_arm_goal(self, arm_goal_timeline, step, synchronous_trajectory):
+        pass
 
     def _exec_arm(self, timeline, arm_goal_timeline, arm_velocity_timeline, is_left_arm, step, synchronous_trajectory, publisher):
         if arm_goal_timeline[step] is not None:
@@ -1025,6 +1067,40 @@ class JTP(object):
                (self.point.time_from_start, [np.round(np.degrees(p)) for p in self.point.positions], self.point.velocities)
                #(self.point.time_from_start, self.point.positions, self.point.velocities)
 
+class NewSynchronousTrajectory(object):
+    def __init__(self, logic_name, joint_trajectory_topic, joint_names, do_init=False, timeout=5):
+        self.do_init = do_init
+        self.joint_names = joint_names
+        self.logic_name = logic_name
+
+        if do_init:
+            self.action_client = actionlib.SimpleActionClient(joint_trajectory_topic, FollowJointTrajectoryAction)
+            if not self.action_client.wait_for_server(timeout=rospy.Duration(timeout)):
+                PrettyOutput.init_exit_msg(logic_name)
+
+
+    def send_jtp_list(self, jtp_list):
+        if not self.do_init:
+            return
+
+        print 'Sending following JTP-Points to %s:' % self.logic_name
+        for jtp in jtp_list:
+            print jtp
+
+        goal = FollowJointTrajectoryGoal()
+        goal.trajectory.joint_names = self.joint_names
+        goal.trajectory.points = JTP.get_point_list(jtp_list)
+        self.action_client.send_goal(goal=goal)
+        return JTP.get_total_time_duration(jtp_list)
+
+    @staticmethod
+    def _resolve_goal_stats_codes():
+        CODENAMES = [code for code in dir(GoalStatus) if not code.startswith('_') and code[0] in string.ascii_uppercase]
+        CODENUMS = map(getattr, [GoalStatus] * len(CODENAMES), CODENAMES)
+        goal_status_dict = dict()
+        map(lambda num, name: goal_status_dict.update({num: name}), CODENUMS, CODENAMES)
+        return goal_status_dict
+
 
 class SynchronousTrajectory():
     def __init__(self, ros_rate=10, init_arm_left=False, init_arm_right=False, timeout=5):
@@ -1119,7 +1195,6 @@ class SynchronousGripperTrajectory():
     def get_joint_names(self, is_left_arm=True):
         joint_name_pattern = ['gripper_%s_%d_joint']*7
         direction = 'left' if is_left_arm else 'right'
-        #['gripper_right_proximal', 'gripper_right_distal']
         return [pattern % (direction, idx+1) for idx, pattern in enumerate(joint_name_pattern)]
 
     def send_jtp_list_synchronous(self, jtp_list_left, jtp_list_right):
@@ -1606,12 +1681,11 @@ class StuffToTest(BaseScene):
 
 
     def gripper(self):
-
-        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_home)])
-        self.appendX(self.lin(velocity=0, duration=8))
+        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_open)])
+        self.appendX(self.lin(velocity=0, duration=6))
         self.syncTimeline()
 
-        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_open)])
+        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_home)])
         self.appendX(self.lin(velocity=0, duration=1))
         self.syncTimeline()
 
@@ -1872,14 +1946,13 @@ class FindingRoseScene_5(BaseScene):
 
         jtp_flow_data = [list(), list()]
 
-        #jtp_flow_data[1].append(JTP(rel_time=1.75, **ArmMovement.pose_folded_grip_right_c1))
-        #jtp_flow_data[1].append(JTP(rel_time=2.75, **ArmMovement.pose_folded_grip_right_c2))
-        #jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c3))
-        #jtp_flow_data[1].append(JTP(rel_time=2.5, **ArmMovement.pose_folded_grip_right_c4))
+        jtp_flow_data[1].append(JTP(rel_time=1.75, **ArmMovement.pose_folded_grip_right_c1))
+        jtp_flow_data[1].append(JTP(rel_time=2.75, **ArmMovement.pose_folded_grip_right_c2))
+        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c3))
+        jtp_flow_data[1].append(JTP(rel_time=2.5, **ArmMovement.pose_folded_grip_right_c4))
 
-        #self.GRIPPERR_GOAL.extend([None]*self.calc_samples(5))
-        #self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_open)])
-
+        self.GRIPPERR_GOAL.extend([None]*self.calc_samples(3))
+        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_open)])
 
         pargs = dict(ArmMovement.pose_grip_rose_right)
         pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
@@ -1890,7 +1963,6 @@ class FindingRoseScene_5(BaseScene):
 
 
     def act_5_2_grip_rose(self):
-        return
         self.syncTimeline()
 
 
@@ -1904,7 +1976,6 @@ class FindingRoseScene_5(BaseScene):
         self.syncTimeline()
 
     def act_5_3_gripper_away_from_rose(self):
-        return
         jtp_flow_data = [list(), list()]
 
         jtp_flow_data[1].append(JTP(rel_time=2, **ArmMovement.pose_folded_grip_right_c6))
@@ -1918,7 +1989,6 @@ class FindingRoseScene_5(BaseScene):
         #self.syncTimeline()
 
     def act_5_4_drive_away(self):
-        return
         sleeptime = 1.5
         self.appendX(self.lin(velocity=0, duration=sleeptime))
         self.appendY(self.lin(velocity=0, duration=sleeptime))
