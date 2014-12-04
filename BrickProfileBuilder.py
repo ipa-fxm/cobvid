@@ -1758,11 +1758,11 @@ class StuffToTest(BaseScene):
 
 
     def gripper(self):
-        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_open)])
+        self.appendGripperLeft([JTP(0, **GripperMovement.gripper_pose_open)])
         self.appendX(self.lin(velocity=0, duration=6))
         self.syncTimeline()
 
-        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_home)])
+        self.appendGripperLeft([JTP(0, **GripperMovement.gripper_pose_home)])
         self.appendX(self.lin(velocity=0, duration=1))
         self.syncTimeline()
 
@@ -1771,9 +1771,6 @@ class BoringScene_1_2_3(BaseScene):
         super(BoringScene_1_2_3, self).__init__(profile)
 
     def bridge_act_1_arms_startpos(self, dotime=8):
-
-        #self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_front)))
-        #self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_back)))
         self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_front_back_c1)))
         self.syncTimeline()
 
@@ -2106,12 +2103,13 @@ class ThePresentScene_6(BaseScene):
         jtp_flow_data = [list(), list()]
         jtp_flow_data[1].append(JTP(rel_time=dotime, **self.inject_zero_velocity(ArmMovement.pose_carry_rose_front_right)))
         self.appendArms(jtp_flow_data, True)
-        self.syncTimeline()
 
-    def act_6_give_rose(self, velocity=0.4, lin_duration=4, acc_duration=1.5, wait_duration=1):
         self.appendMimic('sad')
         self.appendLed(frequency=1)
 
+        self.syncTimeline()
+
+    def act_6_give_rose(self, velocity=0.4, lin_duration=4, acc_duration=1.5, wait_duration=1, kiss_duration=3):
         self.appendX(self.acc(velocity_start=0, velocity_end=velocity, duration=acc_duration))
         self.appendX(self.lin(velocity=velocity, duration=lin_duration))
 
@@ -2125,16 +2123,23 @@ class ThePresentScene_6(BaseScene):
 
         self.syncTimeline()
 
+        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_open)])
+
         # waiting...
         self.appendX(self.lin(velocity=0, duration=wait_duration))
 
-        self.syncTimelineArmGoal()
+        self.syncTimeline()
+
+        jtp_flow_data = [list(), list()]
+        jtp_flow_data[1].append(JTP.get_mirrored_jtp(JTP(rel_time=acc_duration*3, **self.inject_zero_velocity(ArmMovement.pose_boring_walk_front_back_c1))))
+        self.appendArms(jtp_flow_data, True)
+
+        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_close)])
+        self.appendX(self.lin(velocity=0, duration=1))
+
+        self.appendMimic('laugh')
 
         #go back...
-        #self.syncTimeline()
-        self.syncTimelineMimic()
-        self.appendMimic('happy')
-
 
         freq = 1.5
         start_color = [0, 1, 0.7]
@@ -2149,15 +2154,18 @@ class ThePresentScene_6(BaseScene):
             self.appendLed(r=r, g=g, b=b, frequency=freq, mode=3)
             fillWait = [None] * self.calc_samples(1.0/freq)
             self.LED.extend(fillWait)
-            #self.appendX(self.lin(velocity=0, duration=1.0/freq))
-            #self.syncTimeline()
+
+
+
+        self.appendX(self.lin(velocity=0, duration=kiss_duration))
+        self.syncTimeline()
+
+
+
 
 
         self.appendX(self.acc(velocity_start=0, velocity_end=-velocity, duration=acc_duration*3))
 
-        jtp_flow_data = [list(), list()]
-        jtp_flow_data[1].append(JTP(rel_time=acc_duration*3, **self.inject_zero_velocity(ArmMovement.pose_carry_rose_front_right)))
-        self.appendArms(jtp_flow_data, True)
 
         self.appendX(self.lin(velocity=-velocity, duration=lin_duration))
         self.appendX(self.acc(velocity_start=-velocity, velocity_end=0, duration=acc_duration))

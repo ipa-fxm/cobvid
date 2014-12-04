@@ -111,8 +111,16 @@ group93:
     ['MIMIC', trigger, disable_mimic],
     ['LED', trigger, disable_led],
     ]
+group98:
+  group_name: 'L GRIPPER'
+  component_name: gripper_left
+  buttons: [
+    ['home', move, home],
+    ['open', move, open],
+    ['close', move, close],
+    ]
 group99:
-  group_name: 'GRIPPER'
+  group_name: 'R GRIPPER'
   component_name: gripper_right
   buttons: [
     ['home', move, home],
