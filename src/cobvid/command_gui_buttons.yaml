@@ -81,6 +81,7 @@ group91:
     ['??? (11) ENDING', trigger, sc11],
     ['!!! TEST MIMIC !!!', trigger, test1],
     ['!!! TEST LED !!!', trigger, test2],
+    ['!!! TEST GRIPPER !!!', trigger, test3],
     ]
 group92:
   group_name: 'ENABLE CTRL'
@@ -91,6 +92,8 @@ group92:
     ['BASE', trigger, enable_base],
     ['ARM LEFT', trigger, enable_arm_left],
     ['ARM RIGHT', trigger, enable_arm_right],
+    ['GRIPPER LEFT', trigger, enable_gripper_left],
+    ['GRIPPER RIGHT', trigger, enable_gripper_right],
     ['MIMIC', trigger, enable_mimic],
     ['LED', trigger, enable_led],
     ]
@@ -103,6 +106,16 @@ group93:
     ['BASE', trigger, disable_base],
     ['ARM LEFT', trigger, disable_arm_left],
     ['ARM RIGHT', trigger, disable_arm_right],
+    ['GRIPPER LEFT', trigger, disable_gripper_left],
+    ['GRIPPER RIGHT', trigger, disable_gripper_right],
     ['MIMIC', trigger, disable_mimic],
     ['LED', trigger, disable_led],
+    ]
+group99:
+  group_name: 'GRIPPER'
+  component_name: gripper_right
+  buttons: [
+    ['home', move, home],
+    ['open', move, open],
+    ['close', move, close],
     ]

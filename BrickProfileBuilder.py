@@ -10,8 +10,6 @@ try:
     from cob_srvs.srv import Trigger
     from cob_mimic.srv import SetMimic, SetMimicRequest
     from cob_light.srv import SetLightMode, SetLightModeRequest
-
-
 except:
     isLive=False
     print
@@ -44,6 +42,18 @@ import sys
 import os
 import string
 import operator as op
+
+class DummyObject(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __getattribute__(self, name):
+        return DummyObject()
+
+
+if not isLive:
+    SetMimicRequest = DummyObject
+    SetLightModeRequest = DummyObject
 
 class PrettyOutput(object):
 
@@ -284,10 +294,12 @@ class ROSBridge(object):
         def param_call(self, *args):
             print 'FAKE: %s:   %s' % (self.topic_name, args)
 
-    def __init__(self, fakerun=False, exec_base=False, exec_arm_left=False, exec_arm_right=False, exec_mimic=False, exec_led=False, timeout=5):
+    def __init__(self, fakerun=False, exec_base=False, exec_arm_left=False, exec_arm_right=False, exec_gripper_left=False, exec_gripper_right=False, exec_mimic=False, exec_led=False, timeout=5):
         self.exec_base = exec_base
         self.exec_arm_left = exec_arm_left
         self.exec_arm_right = exec_arm_right
+        self.exec_gripper_left = exec_gripper_left
+        self.exec_gripper_right = exec_gripper_right
         self.exec_mimic = exec_mimic
         self.exec_led = exec_led
 
@@ -339,6 +351,15 @@ class ROSBridge(object):
         else:
             self.synchronous_trajectory = ROSBridge.Dummy('ARM_GOAL')
 
+        if not fakerun and isLive:
+            self.synchronous_gripper_trajectory = SynchronousGripperTrajectory(init_gripper_left=self.exec_gripper_left, init_gripper_right=self.exec_gripper_right, timeout=timeout)
+        else:
+            self.synchronous_gripper_trajectory = ROSBridge.Dummy('GRIPPER_GOAL')
+
+    def _exec_gripper(self, timeline, gripper_goal_timeline, is_left_gripper, step, synchronous_trajectory):
+        if gripper_goal_timeline[step] is not None:
+            print 'FOO'
+            synchronous_trajectory.send_jtp_list(gripper_goal_timeline[step], is_left_gripper=is_left_gripper)
 
     def _exec_arm(self, timeline, arm_goal_timeline, arm_velocity_timeline, is_left_arm, step, synchronous_trajectory, publisher):
         if arm_goal_timeline[step] is not None:
@@ -408,6 +429,16 @@ class ROSBridge(object):
                                    synchronous_trajectory=self.synchronous_trajectory,
                                    publisher=self.arm_right_velocity_publisher)
 
+            if self.exec_gripper_left:
+                self._exec_gripper(timeline=timeline, gripper_goal_timeline=timeline.GRIPPERL_GOAL,
+                                   is_left_gripper=True, step=step,
+                                   synchronous_trajectory=self.synchronous_gripper_trajectory)
+
+            if self.exec_gripper_right:
+                self._exec_gripper(timeline=timeline, gripper_goal_timeline=timeline.GRIPPERR_GOAL,
+                                   is_left_gripper=False, step=step,
+                                   synchronous_trajectory=self.synchronous_gripper_trajectory)
+
             if self.exec_mimic and timeline.MIMIC[step] is not None:
                 #print timeline.MIMIC[step]
                 self.mimic_call(timeline.MIMIC[step])
@@ -434,6 +465,8 @@ class ServiceHandler(object):
         self.is_ros = False
         self.is_ros_arm_left = False
         self.is_ros_arm_right = False
+        self.is_ros_gripper_left = False
+        self.is_ros_gripper_right = False
         self.is_ros_base = False
         self.is_ros_mimic = False
         self.is_ros_led = False
@@ -462,6 +495,12 @@ class ServiceHandler(object):
         rospy.Service('/scenario/enable_arm_right', Trigger, self._enable_arm_right)
         rospy.Service('/scenario/disable_arm_right', Trigger, self._disable_arm_right)
 
+        rospy.Service('/scenario/enable_gripper_left', Trigger, self._enable_gripper_left)
+        rospy.Service('/scenario/disable_gripper_left', Trigger, self._disable_gripper_left)
+
+        rospy.Service('/scenario/enable_gripper_right', Trigger, self._enable_gripper_right)
+        rospy.Service('/scenario/disable_gripper_right', Trigger, self._disable_gripper_right)
+
         rospy.Service('/scenario/enable_mimic', Trigger, self._enable_mimic)
         rospy.Service('/scenario/disable_mimic', Trigger, self._disable_mimic)
 
@@ -480,10 +519,12 @@ class ServiceHandler(object):
 
         self.is_ros = '-ros' in sys.argv
         if self.is_ros:
-            n_ros_params = 5
+            n_ros_params = 7
             idx = sys.argv.index('-ros') + 1
             self.is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+n_ros_params]
+            self.is_ros_gripper_left = 'gripper_left' in sys.argv[idx:idx+n_ros_params]
+            self.is_ros_gripper_right = 'gripper_right' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_base = 'base' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_mimic = 'mimic' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_led = 'led' in sys.argv[idx:idx+n_ros_params]
@@ -492,17 +533,19 @@ class ServiceHandler(object):
     def print_startup_args(self, *_):
         print
         print
-        print 'FAKERUN:      ', self.is_fakerun
+        print 'FAKERUN:          ', self.is_fakerun
         print
-        print 'SERVICE MODE: ', self.is_service_mode
+        print 'SERVICE MODE:     ', self.is_service_mode
         print
-        print 'ROS ENABLED:  ', self.is_ros
-        print '    ARM_LEFT: ', self.is_ros_arm_left
-        print '    ARM RIGHT:', self.is_ros_arm_right
-        print '    BASE:     ', self.is_ros_base
+        print 'ROS ENABLED:      ', self.is_ros
+        print '    ARM LEFT:     ', self.is_ros_arm_left
+        print '    ARM RIGHT:    ', self.is_ros_arm_right
+        print '    GRIPPER LEFT: ', self.is_ros_gripper_left
+        print '    GRIPPER RIGHT:', self.is_ros_gripper_right
+        print '    BASE:         ', self.is_ros_base
         print
-        print '    MIMIC:    ', self.is_ros_mimic
-        print '    LED:      ', self.is_ros_led
+        print '    MIMIC:        ', self.is_ros_mimic
+        print '    LED:          ', self.is_ros_led
         print
 
     def callback_creator(self, service_name, func_list, bound_timeline_object):
@@ -520,6 +563,9 @@ class ServiceHandler(object):
 
         if not isinstance(func_list, list):
             func_list = [func_list]
+
+        for idx, fnc in enumerate(func_list):
+            pass
 
         rospy.Service(service_name, Trigger, self.callback_creator(service_name, func_list, bound_timline_object))
 
@@ -557,7 +603,7 @@ class ServiceHandler(object):
         self.init_startup_args()
 
         if not (self.is_ros_base or self.is_ros_arm_left or self.is_ros_arm_right or self.is_ros_mimic
-                or self.is_ros_led):
+                or self.is_ros_led or self.is_ros_gripper_left or self.is_ros_gripper_right):
             idx = sys.argv.index('-ros')
             sys.argv.pop(idx)
 
@@ -598,6 +644,18 @@ class ServiceHandler(object):
     def _disable_arm_right(self, *args):
         self._disable_argv('arm_right', self.is_ros_arm_right)
 
+    def _enable_gripper_left(self, *args):
+        self._enable_argv('gripper_left', self.is_ros_gripper_left)
+
+    def _disable_gripper_left(self, *args):
+        self._disable_argv('gripper_left', self.is_ros_gripper_left)
+
+    def _enable_gripper_right(self, *args):
+        self._enable_argv('gripper_right', self.is_ros_gripper_right)
+
+    def _disable_gripper_right(self, *args):
+        self._disable_argv('gripper_right', self.is_ros_gripper_right)
+
     def _enable_mimic(self, *args):
         self._enable_argv('mimic', self.is_ros_mimic)
 
@@ -624,7 +682,9 @@ class ServiceHandler(object):
                                exec_arm_left=self.is_ros_arm_left,
                                exec_arm_right=self.is_ros_arm_right,
                                exec_mimic=self.is_ros_mimic,
-                               exec_led=self.is_ros_led)
+                               exec_led=self.is_ros_led,
+                               exec_gripper_left=self.is_ros_gripper_left,
+                               exec_gripper_right=self.is_ros_gripper_right)
 
             bridge.exec_timeline(timeline)
 
@@ -649,11 +709,14 @@ class Timeline(object):
         self.TLTH = None
         self.ARML_GOAL = None
         self.ARMR_GOAL = None
+        self.GRIPPERL_GOAL = None
+        self.GRIPPERR_GOAL = None
         self.ARML_VEL = None
         self.ARMR_VEL = None
         self.MIMIC = None
         self.LED = None
         self.SECTIONS = None
+
 
         self.clear_data()
 
@@ -663,6 +726,8 @@ class Timeline(object):
         self.TLTH = np.array([], np.float64)
         self.ARML_GOAL = list()
         self.ARMR_GOAL = list()
+        self.GRIPPERL_GOAL = list()
+        self.GRIPPERR_GOAL = list()
         self.ARML_VEL = np.ndarray((0, 8), np.float64)
         self.ARMR_VEL = np.ndarray((0, 8), np.float64)
         self.MIMIC = list()
@@ -707,6 +772,16 @@ class Timeline(object):
             return
         self.ARMR_GOAL.append(arm_right_data)
 
+    def appendGripperLeft(self, gripper_left_data):
+        if not gripper_left_data:
+            return
+        self.GRIPPERL_GOAL.append(gripper_left_data)
+
+    def appendGripperRight(self, gripper_right_data):
+        if not gripper_right_data:
+            return
+        self.GRIPPERR_GOAL.append(gripper_right_data)
+
     def appendVelArm(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
         self.appendVelArmLeft(j1=j1, j2=j2, j3=j3, j4=j4, j5=j5, j6=j6, j7=j7)
         self.appendVelArmRight(j1=j1, j2=j2, j3=j3, j4=j4, j5=j5, j6=j6, j7=j7)
@@ -728,7 +803,7 @@ class Timeline(object):
         self.MIMIC.append(SetMimicRequest(name, speed, repeat))
 
     def appendLed(self, r=0, g=1, b=0.7, a=0.4, frequency=0.25, mode=3):
-        luminosity_scale = a if mode == 3 else 1
+        luminosity_scale = 1
 
         lmr = SetLightModeRequest()
         lmr.mode.mode = mode
@@ -762,6 +837,7 @@ class Timeline(object):
         self.syncTimelineArmGoal()
         self.syncTimelineMimic()
         self.syncTimelineLed()
+        self.syncTimelineGripper()
 
     def syncTimelineBase(self):
         self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float64], 0, self.TLX, self.TLY, self.TLTH)
@@ -771,6 +847,9 @@ class Timeline(object):
 
     def syncTimelineArmGoal(self):
         self.ARML_GOAL, self.ARMR_GOAL = self._evenMaxSamples(self._generatePythonList, [None], 0, self.ARML_GOAL, self.ARMR_GOAL)
+
+    def syncTimelineGripper(self):
+        self.GRIPPERL_GOAL, self.GRIPPERR_GOAL= self._evenMaxSamples(self._generatePythonList, [None], 0, self.GRIPPERL_GOAL, self.GRIPPERR_GOAL)
 
     def syncTimelineMimic(self):
         self.MIMIC = self._evenMaxSamples(self._generatePythonList, [None], 0, self.MIMIC)
@@ -1006,6 +1085,81 @@ class SynchronousTrajectory():
         #rospy.sleep(0.05)
         return JTP.get_total_time_duration(jtp_list)
 
+
+class SynchronousGripperTrajectory():
+    def __init__(self, ros_rate=10, init_gripper_left=False, init_gripper_right=False, timeout=5):
+        self.init_gripper_left = init_gripper_left
+        self.init_gripper_right = init_gripper_right
+
+        GRIPPER_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/gripper_left/joint_trajectory_controller/follow_joint_trajectory'
+        GRIPPER_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC = '/gripper_right/joint_trajectory_controller/follow_joint_trajectory'
+
+        self.goal_status_dict = self._resolve_goal_stats_codes()
+
+        if init_gripper_left:
+            self.action_client_left = actionlib.SimpleActionClient(GRIPPER_LEFT_FOLLOW_JOINT_TRAJECTORY_TOPIC,
+                                                                   FollowJointTrajectoryAction)
+            if not self.action_client_left.wait_for_server(timeout=rospy.Duration(timeout)):
+                PrettyOutput.init_exit_msg('LEFT GRIPPER')
+
+        if init_gripper_right:
+            self.action_client_right = actionlib.SimpleActionClient(GRIPPER_RIGHT_FOLLOW_JOINT_TRAJECTORY_TOPIC,
+                                                                    FollowJointTrajectoryAction)
+            if not self.action_client_right.wait_for_server(timeout=rospy.Duration(timeout)):
+                PrettyOutput.init_exit_msg('RIGHT GRIPPER')
+
+    def _resolve_goal_stats_codes(self):
+        CODENAMES = [code for code in dir(GoalStatus) if not code.startswith('_') and code[0] in string.ascii_uppercase]
+        CODENUMS = map(getattr, [GoalStatus] * len(CODENAMES), CODENAMES)
+        goal_status_dict = dict()
+        map(lambda num, name: goal_status_dict.update({num:name}) ,CODENUMS, CODENAMES)
+        return goal_status_dict
+
+
+    def get_joint_names(self, is_left_arm=True):
+        joint_name_pattern = ['gripper_%s_%d_joint']*7
+        direction = 'left' if is_left_arm else 'right'
+        #['gripper_right_proximal', 'gripper_right_distal']
+        return [pattern % (direction, idx+1) for idx, pattern in enumerate(joint_name_pattern)]
+
+    def send_jtp_list_synchronous(self, jtp_list_left, jtp_list_right):
+        self.send_jtp_list(jtp_list_left, is_left_gripper=True)
+        self.send_jtp_list(jtp_list_right, is_left_gripper=False)
+        return JTP.get_total_time_duration(jtp_list_left, jtp_list_right)
+
+    def send_jtp_list(self, jtp_list, is_left_gripper=True):
+        if is_left_gripper and not self.init_gripper_left:
+            return
+
+        if not is_left_gripper and not self.init_gripper_right:
+            return
+
+        print 'Sending following JTP-Points to %s gripper:' % ('left' if is_left_gripper else 'right')
+        for jtp in jtp_list:
+            print jtp
+
+        action_client = self.action_client_left if is_left_gripper else self.action_client_right
+        goal = FollowJointTrajectoryGoal()
+        goal.trajectory.joint_names = self.get_joint_names(is_left_gripper)
+        goal.trajectory.points = JTP.get_point_list(jtp_list)
+        action_client.send_goal(goal=goal)
+        #rospy.sleep(0.05)
+        return JTP.get_total_time_duration(jtp_list)
+
+class GripperMovement(object):
+
+    gripper_pose_close = {'p1': -0.85, 'p2':  0.1}
+    gripper_pose_home =  {'p1': -0.6,  'p2': -0.4}
+    gripper_pose_open =  {'p1':  0.85, 'p2': -1.4}
+
+    gripper_pose_rose_open =  {'p1':  0.85, 'p2': -1.4}
+
+
+    def __init__(self, profile):
+        self.profile = profile
+
+
+
 class ArmMovement(object):
     pose_home = {'p1': 0, 'p2': 0, 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p7': 0,
                  'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
@@ -1013,17 +1167,20 @@ class ArmMovement(object):
     pose_boring_walk_back = {'p1': np.radians(-55), 'p2': np.radians(-95),
                              'p3': np.radians(60), 'p4': np.radians(95),
                              'p5': np.radians(60), 'p6': np.radians(40),
+                             'p7': -0.71,
                              'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
 
     pose_boring_walk_front_back_c1 = {'p1': np.radians(-80), 'p2': np.radians(-74),
                                       'p3': np.radians(100), 'p4': np.radians(94),
-                                      'p5': np.radians(60), 'p6': np.radians(40)}
+                                      'p5': np.radians(60), 'p6': np.radians(40),
+                                      'p7': -0.95}
 
 
     pose_boring_walk_front = {'p1': np.radians(-110), 'p2': np.radians(-75),
                               'p3': np.radians(147), 'p4': np.radians(90),
                               'p5': np.radians(60), 'p6': np.radians(40),
+                              'p7': -0.85,
                               'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
 
@@ -1049,7 +1206,8 @@ class ArmMovement(object):
 
     pose_right_folded_back = {'p1': np.radians(55), 'p2': np.radians(90),
                               'p3': np.radians(0), 'p4': np.radians(63),
-                              'p5': np.radians(83), 'p6': np.radians(40)}
+                              'p5': np.radians(83), 'p6': np.radians(40),
+                              'p7': -1.6}
 
 
     pose_folded_grip_right_c1 = {'p1': np.radians(57), 'p2': np.radians(96),
@@ -1067,22 +1225,22 @@ class ArmMovement(object):
     pose_folded_grip_right_c4 = {'p1': 3.14, 'p2': 1.66,
                                  'p3': -1.93, 'p4': -1.73,
                                  'p5': 0.31, 'p6': 1.37,
-                                 'p7': 1.0}
+                                 'p7': 0.35}
 
     pose_grip_rose_right = {'p1': 3.46, 'p2': 1.83,
                                  'p3': -1.93, 'p4': -0.45,
                                  'p5': 0.31, 'p6': 0.55,
-                                 'p7': 1.0}
+                                 'p7': 0.19}
 
     pose_folded_grip_right_c6 = {'p1': 3.7, 'p2': 1.83,
                                  'p3': -1.93, 'p4': -0.20,
                                  'p5': 0.31, 'p6': -0.13,
                                  'p7': 1.0}
 
-    pose_carry_rose_front_right = {'p1': 2.34, 'p2': 1.35,
+    pose_carry_rose_front_right = {'p1': 2.34, 'p2': 1.15,
                                    'p3': -2.69, 'p4': -1.96,
-                                   'p5': 0.38, 'p6': 0.59,
-                                   'p7': 1.0}
+                                   'p5': 0.38, 'p6': 0.16,
+                                   'p7': 0.40}
 
 
     pose_cheer_drum = {'p1': -2.8, 'p2': -1.39,
@@ -1095,14 +1253,18 @@ class ArmMovement(object):
 
     pose_present_give_rose_right = {'p1': 2.91, 'p2': 1.50,
                                     'p3': -2.39, 'p4': -1.28,
-                                    'p5': 0.62, 'p6': 0.59,
-                                    'p7': 1.0,
+                                    'p5': 0.62, 'p6': 0.64,
+                                    'p7': 0.34,
                                     'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0}
 
 
     def __init__(self, profile):
         self.profile = profile
 
+    def inject_zero_velocity(self, pose):
+        pargs = dict(pose)
+        pargs.update({'v1': 0, 'v2': 0, 'v3': 0, 'v4': 0, 'v5': 0, 'v6': 0, 'v7': 0})
+        return pargs
 
     def movePose(self, pose, duration=4):
         jtp_list_left = list()
@@ -1154,7 +1316,7 @@ class Bricks(object):
         self.profile = profile
 
     def calc_samples(self, duration):
-        return duration / self.profile.sample_time
+        return int(duration / self.profile.sample_time)
 
     def sin(self, start, stop, duration):
         return np.sin(np.linspace(start, stop, self.calc_samples(duration)))
@@ -1240,7 +1402,7 @@ class Bricks(object):
 
         return tlx, tly, tlth
 
-class BaseScene(Timeline, Bricks, Bezier, ArmMovement):
+class BaseScene(Timeline, Bricks, Bezier, ArmMovement, GripperMovement):
     def __init__(self, profile):
             super(BaseScene, self).__init__(profile)
 
@@ -1412,7 +1574,7 @@ class StuffToTest(BaseScene):
 
     def mimic(self):
 
-        self.appendMimic('happy')
+        self.appendMimic('ask')
         self.appendX(self.lin(velocity=0, duration=5))
         self.syncTimeline()
 
@@ -1422,11 +1584,11 @@ class StuffToTest(BaseScene):
 
     def led(self):
 
-        freq = 1.5
+        freq = 3
 
         start_color = [0, 1, 0.7]
         end_color = [0.7, 0, 0]
-        colorsteps = 5
+        colorsteps = 15
         interp = list()
 
         for cch in range(3):
@@ -1435,6 +1597,7 @@ class StuffToTest(BaseScene):
         for r, g, b in zip(*interp):
             self.appendLed(r=r, g=g, b=b, frequency=freq, mode=3)
             self.appendX(self.lin(velocity=0, duration=1.0/freq))
+            print 1.0/freq
             self.syncTimeline()
 
         #self.appendLed()
@@ -1442,12 +1605,25 @@ class StuffToTest(BaseScene):
         #self.syncTimeline()
 
 
+    def gripper(self):
+
+        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_home)])
+        self.appendX(self.lin(velocity=0, duration=8))
+        self.syncTimeline()
+
+        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_open)])
+        self.appendX(self.lin(velocity=0, duration=1))
+        self.syncTimeline()
+
 class BoringScene_1_2_3(BaseScene):
     def __init__(self, profile):
         super(BoringScene_1_2_3, self).__init__(profile)
 
     def bridge_act_1_arms_startpos(self, dotime=8):
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_boring_walk_front_back_c1))
+
+        #self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_front)))
+        #self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_back)))
+        self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_front_back_c1)))
         self.syncTimeline()
 
     def act_1_slender_around(self):
@@ -1516,9 +1692,12 @@ class BoringScene_1_2_3(BaseScene):
         self.syncTimeline()
 
     def bridge_act_2_arms_startpos(self, dotime=8):
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.bridge_pose_boring_walk_c1_to_waiting_arms_side))
+        self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.bridge_pose_boring_walk_c1_to_waiting_arms_side)))
         #self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_waiting_arms_side))
         self.syncTimeline()
+
+    def lab_act_2_1_to_window(self):
+        self.act_2_1_to_window(radius=-2.5, radius_dotime=20)
 
     def act_2_1_to_window(self, radius=-2.5, radius_dotime=20):
         self.syncTimeline()
@@ -1562,13 +1741,16 @@ class BoringScene_1_2_3(BaseScene):
         self.syncTimeline()
 
 
-    def act_2_2_away_from_window(self):
+    def lab_act_2_2_away_from_window(self):
+        self.act_2_2_away_from_window(arm_dotime=2, lin_time=0)
+
+    def act_2_2_away_from_window(self, arm_dotime=2, lin_time=6):
 
         self.new_section('\nenfernen vom fenster')
 
         dotime = 2
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.bridge_pose_boring_walk_c1_to_waiting_arms_side))
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_boring_walk_front_back_c1))
+        self.appendArms(self.movePose(duration=arm_dotime, pose=ArmMovement.bridge_pose_boring_walk_c1_to_waiting_arms_side))
+        self.appendArms(self.movePose(duration=arm_dotime, pose=ArmMovement.pose_boring_walk_front_back_c1))
 
         self.appendY(self.lin(velocity=0, duration=0.5))
         self.appendY(self.lin_acc(velocity_start=0, velocity_lin=0.15, velocity_end=0, acc_percentage=0.3, dec_percentage=0.3, duration=3.5))
@@ -1577,16 +1759,20 @@ class BoringScene_1_2_3(BaseScene):
 
         self.appendX(self.lin_acc(velocity_start=0, velocity_lin=-0.08, velocity_end=0, acc_percentage=0.7, dec_percentage=0.3, duration=1.5))
 
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=10.5))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=5 + lin_time))
 
         self.syncTimeline()
 
 
     def bridge_act_3_arms_startpos(self, dotime=8):
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_boring_walk_front_back_c1))
+        self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_front_back_c1)))
         self.syncTimeline()
 
-    def act_3_move_corner_shock(self):
+    def lab_act_3_move_corner_shock(self):
+        #TODO: ***
+        self.act_3_move_corner_shock(radius=-1.5, duration=12)
+
+    def act_3_move_corner_shock(self, radius=-1.5, duration=16):
         self.syncTimeline()
 
         self.appendMimic('tired')
@@ -1597,7 +1783,7 @@ class BoringScene_1_2_3(BaseScene):
 
         self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=steps-1))
 
-        tlx, tlth = self.circular_path(radius=-1.5, phi=-np.radians(90), duration=16, dec_percentage=0.05)
+        tlx, tlth = self.circular_path(radius=radius, phi=-np.radians(90), duration=duration, dec_percentage=0.05)
         self.appendX(tlx)
         self.appendTH(tlth)
 
@@ -1625,7 +1811,7 @@ class RunAwayScene_4(BaseScene):
         super(RunAwayScene_4, self).__init__(profile)
 
     def bridge_act_4_arms_startpos(self, dotime=8):
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_run_arms))
+        self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_run_arms)))
         self.syncTimeline()
 
 
@@ -1676,7 +1862,7 @@ class FindingRoseScene_5(BaseScene):
 
     def bridge_act_5_arm_right_startpos(self, dotime=8):
         jtp_flow_data = [list(), list()]
-        jtp_flow_data[1].append(JTP(rel_time=dotime, **ArmMovement.pose_right_folded_back))
+        jtp_flow_data[1].append(JTP(rel_time=dotime, **self.inject_zero_velocity(ArmMovement.pose_right_folded_back)))
         self.appendArms(jtp_flow_data, True)
         self.syncTimeline()
 
@@ -1686,10 +1872,13 @@ class FindingRoseScene_5(BaseScene):
 
         jtp_flow_data = [list(), list()]
 
-        jtp_flow_data[1].append(JTP(rel_time=1.75, **ArmMovement.pose_folded_grip_right_c1))
-        jtp_flow_data[1].append(JTP(rel_time=2.75, **ArmMovement.pose_folded_grip_right_c2))
-        jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c3))
-        jtp_flow_data[1].append(JTP(rel_time=2.5, **ArmMovement.pose_folded_grip_right_c4))
+        #jtp_flow_data[1].append(JTP(rel_time=1.75, **ArmMovement.pose_folded_grip_right_c1))
+        #jtp_flow_data[1].append(JTP(rel_time=2.75, **ArmMovement.pose_folded_grip_right_c2))
+        #jtp_flow_data[1].append(JTP(rel_time=1.25, **ArmMovement.pose_folded_grip_right_c3))
+        #jtp_flow_data[1].append(JTP(rel_time=2.5, **ArmMovement.pose_folded_grip_right_c4))
+
+        #self.GRIPPERR_GOAL.extend([None]*self.calc_samples(5))
+        #self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_open)])
 
 
         pargs = dict(ArmMovement.pose_grip_rose_right)
@@ -1701,10 +1890,21 @@ class FindingRoseScene_5(BaseScene):
 
 
     def act_5_2_grip_rose(self):
-        pass
+        return
+        self.syncTimeline()
+
+
+        #self.appendX(self.lin(velocity=0, duration=8))
+        #self.syncTimeline()
+
+        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_close)])
+        self.appendX(self.lin(velocity=0, duration=1))
+        self.syncTimeline()
+
+        self.syncTimeline()
 
     def act_5_3_gripper_away_from_rose(self):
-
+        return
         jtp_flow_data = [list(), list()]
 
         jtp_flow_data[1].append(JTP(rel_time=2, **ArmMovement.pose_folded_grip_right_c6))
@@ -1718,6 +1918,7 @@ class FindingRoseScene_5(BaseScene):
         #self.syncTimeline()
 
     def act_5_4_drive_away(self):
+        return
         sleeptime = 1.5
         self.appendX(self.lin(velocity=0, duration=sleeptime))
         self.appendY(self.lin(velocity=0, duration=sleeptime))
@@ -1743,7 +1944,7 @@ class ThePresentScene_6(BaseScene):
 
     def bridge_act_6_arm_right_startpos(self, dotime=8):
         jtp_flow_data = [list(), list()]
-        jtp_flow_data[1].append(JTP(rel_time=dotime, **ArmMovement.pose_carry_rose_front_right))
+        jtp_flow_data[1].append(JTP(rel_time=dotime, **self.inject_zero_velocity(ArmMovement.pose_carry_rose_front_right)))
         self.appendArms(jtp_flow_data, True)
         self.syncTimeline()
 
@@ -1763,20 +1964,19 @@ class ThePresentScene_6(BaseScene):
         self.appendX(self.acc(velocity_start=velocity, velocity_end=0, duration=acc_duration*3))
 
         self.syncTimeline()
-        self.appendLed(frequency=1.5)
+
         # waiting...
         self.appendX(self.lin(velocity=0, duration=wait_duration))
 
-
+        self.syncTimelineArmGoal()
 
         #go back...
-        self.syncTimeline()
-
+        #self.syncTimeline()
+        self.syncTimelineMimic()
         self.appendMimic('happy')
 
 
         freq = 1.5
-
         start_color = [0, 1, 0.7]
         end_color = [1, 0, 0]
         colorsteps = 5
@@ -1787,16 +1987,16 @@ class ThePresentScene_6(BaseScene):
 
         for r, g, b in zip(*interp):
             self.appendLed(r=r, g=g, b=b, frequency=freq, mode=3)
-            self.calc_samples(1.0/freq)
-            self.appendX(self.lin(velocity=0, duration=1.0/freq))
-            self.syncTimeline()
-
+            fillWait = [None] * self.calc_samples(1.0/freq)
+            self.LED.extend(fillWait)
+            #self.appendX(self.lin(velocity=0, duration=1.0/freq))
+            #self.syncTimeline()
 
 
         self.appendX(self.acc(velocity_start=0, velocity_end=-velocity, duration=acc_duration*3))
 
         jtp_flow_data = [list(), list()]
-        jtp_flow_data[1].append(JTP(rel_time=acc_duration*3, **ArmMovement.pose_carry_rose_front_right))
+        jtp_flow_data[1].append(JTP(rel_time=acc_duration*3, **self.inject_zero_velocity(ArmMovement.pose_carry_rose_front_right)))
         self.appendArms(jtp_flow_data, True)
 
         self.appendX(self.lin(velocity=-velocity, duration=lin_duration))
@@ -1808,7 +2008,7 @@ class CheeringScene_7_8_9_10(BaseScene):
         super(CheeringScene_7_8_9_10, self).__init__(profile)
 
     def bridge_act_7_arms_startpos(self, dotime=8):
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_cheer_arms_up))
+        self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_cheer_arms_up)))
         self.syncTimeline()
 
     def act_7_cheer_arms_up(self, lin_speed=0.5, dotime=1, ntimes=8):
@@ -1894,7 +2094,7 @@ class CheeringScene_7_8_9_10(BaseScene):
         self.syncTimeline()
 
     def bridge_act_8_arms_startpos(self, dotime=8):
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_cheer_arms_up))
+        self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_cheer_arms_up)))
 
         self.syncTimeline()
 
@@ -1935,7 +2135,7 @@ class CheeringScene_7_8_9_10(BaseScene):
 
 
     def bridge_act_9_arms_startpos(self, dotime=8):
-        self.appendArms(self.movePose(duration=dotime, pose=ArmMovement.pose_run_arms))
+        self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_run_arms)))
         #self.appendArms(self.movePose(duration=dotime/2, pose=ArmMovement.pose_cheer_drum))
 
 
@@ -2094,10 +2294,13 @@ if __name__ == '__main__':
 
 
     #boring.bridge_act_1_arms_startpos()
-    boring.act_1_slender_around()
+    #boring.act_1_slender_around()
     #boring.bridge_act_2_arms_startpos()
+    #boring.lab_act_2_1_to_window()
     #boring.act_2_1_to_window()
+    #boring.lab_act_2_2_away_from_window()
     #boring.act_2_2_away_from_window()
+    #boring.lab_act_3_move_corner_shock()
     #boring.act_3_move_corner_shock()
 
     #discover.act_4_run_away()
@@ -2126,7 +2329,7 @@ if __name__ == '__main__':
     #test.test_speed_circula_path()
 
     #test.testBezier()
-
+    test.gripper()
 
     #boring.appendReversePath()
     #test.appendReversePath()
@@ -2136,12 +2339,12 @@ if __name__ == '__main__':
     # SETTING MASTER TIMELINE
     ##########################
 
-    masterTimeline = boring
+    #masterTimeline = boring
     #masterTimeline = discover
     #masterTimeline = findrose
     #masterTimeline = present
     #masterTimeline = cheer
-    #masterTimeline = test
+    masterTimeline = test
 
     sh = ServiceHandler()
     sh.add_service_callback('scenario/br1', boring.bridge_act_1_arms_startpos, boring)
@@ -2171,6 +2374,7 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/sc11', ending.act_11_the_end, ending)
     sh.add_service_callback('scenario/test1', test.mimic, test)
     sh.add_service_callback('scenario/test2', test.led, test)
+    sh.add_service_callback('scenario/test3', test.gripper, test)
 
     PrettyOutput.attation_msg('APPLICATION STARTED')
 
