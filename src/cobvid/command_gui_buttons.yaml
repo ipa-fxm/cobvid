@@ -55,9 +55,10 @@ group8:
   group_name: 'ROSE / PRESENT'
   component_name: cobvid
   buttons: [
-    ['BR -> (5) RIGHT ARM', trigger, br5],
+    ['CAL -> (5) A R ROSE', trigger, cal5],
+    ['BR -> (5) A R H', trigger, br5],
     ['(5) GRIP ROSE', trigger, sc5],
-    ['BR -> (6) RIGHT ARM', trigger, br6],
+    ['BR -> (6) ARM', trigger, br6],
     ['(6) THE PRESENT', trigger, sc6],
     ]
 group9:
@@ -70,15 +71,15 @@ group9:
     ['(8) 360° ROT', trigger, sc8],
     ['BR -> (9) ARMS', trigger, br9],
     ['(9) DRUMS', trigger, sc9],
-    ['??? BR -> (10)', trigger, br10],
+    ['BR -> (10)', trigger, br10],
     ['(10) CORNER', trigger, sc10],
     ]
 group91:
   group_name: 'SCENE'
   component_name: cobvid
   buttons: [
-    ['??? BR -> (11)', trigger, br11],
-    ['??? (11) ENDING', trigger, sc11],
+    ['BR -> (11) MIMIC', trigger, br11],
+    ['(11) ENDING', trigger, sc11],
     ['!!! TEST MIMIC !!!', trigger, test1],
     ['!!! TEST LED !!!', trigger, test2],
     ['!!! TEST GRIPPER !!!', trigger, test3],
@@ -115,6 +116,7 @@ group98:
   group_name: 'L GRIPPER'
   component_name: gripper_left
   buttons: [
+    ['recover', trigger, recover],
     ['home', move, home],
     ['open', move, open],
     ['close', move, close],
@@ -123,6 +125,7 @@ group99:
   group_name: 'R GRIPPER'
   component_name: gripper_right
   buttons: [
+    ['recover', trigger, recover],
     ['home', move, home],
     ['open', move, open],
     ['close', move, close],
