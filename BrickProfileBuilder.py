@@ -1200,7 +1200,7 @@ class ArmMovement(object):
 
 
     pose_cheer_arms_up = {'p1': np.radians(-172), 'p2': np.radians(-83),
-                          'p3': np.radians(115), 'p4': np.radians(100),
+                          'p3': np.radians(105), 'p4': np.radians(100),
                           'p5': np.radians(0), 'p6': np.radians(20)}
 
     pose_waiting_arms_side = {'p1': np.radians(-45), 'p2': np.radians(-60),
@@ -1879,18 +1879,17 @@ class CheeringScene_7_8_9_10(BaseScene):
 
     def bridge_act_7_arms_startpos(self, dotime=8):
         self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_cheer_arms_up)))
+        self.appendMimic('laugh')
+        self.appendLed()
         self.syncTimeline()
 
-    def lab_act_7_cheer_arms_up(self):
-        self.act_7_cheer_arms_up(lin_speed=0.5, dotime=1, ntimes=4)
-
-    def act_7_cheer_arms_up(self, lin_speed=0.5, dotime=1, ntimes=8):
-        self.appendMimic('laugh')
+    def act_7_cheer_arms_up(self, lin_speed=0.5, dotime=1, ntimes=8, enable_base=False):
 
         self.syncTimeline()
 
         lintime = dotime * 2 * ntimes
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=lin_speed, velocity_end=0, duration=lintime))
+        if enable_base:
+            self.appendX(self.lin_acc(velocity_start=0, velocity_lin=lin_speed, velocity_end=0, duration=lintime))
 
         dotime = 1
 
@@ -1915,7 +1914,7 @@ class CheeringScene_7_8_9_10(BaseScene):
                 [ # j4
                     [sin_0_2pi, sin_0_2pi],
                     #[zero, zero],
-                    [-0.4, 0.4],
+                    [-0.5, 0.5],
                 ],
                 [ # j5
                     [zero, zero],
