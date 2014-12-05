@@ -44,10 +44,12 @@
   <build_depend>actionlib</build_depend>
   <build_depend>rospy</build_depend>
   <build_depend>trajectory_msgs</build_depend>
+  <build_depend>cob_mimic</build_depend>
   <run_depend>control_msgs</run_depend>
   <run_depend>actionlib</run_depend>
   <run_depend>rospy</run_depend>
   <run_depend>trajectory_msgs</run_depend>
+  <run_depend>cob_mimic</run_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

@@ -9,6 +9,7 @@ try:
     roslib.load_manifest('cobvid')
     from cob_srvs.srv import Trigger
     from cob_mimic.srv import SetMimic, SetMimicRequest
+    from cob_mimic.msg import SetMimicAction, SetMimicGoal
     from cob_light.srv import SetLightMode, SetLightModeRequest
 except:
     isLive=False
@@ -23,6 +24,8 @@ import rosnode
 import actionlib
 
 # ROS MSGS
+
+from cob_mimic.msg import SetMimicAction
 from geometry_msgs.msg import Twist
 from control_msgs.msg import FollowJointTrajectoryAction
 from control_msgs.msg import FollowJointTrajectoryGoal
@@ -317,6 +320,9 @@ class ROSBridge(object):
         GRIPPER_LEFT_TRAJECTORY_TOPIC = '/gripper_left/joint_trajectory_controller/follow_joint_trajectory'
         GRIPPER_RIGHT_TRAJECTORY_TOPIC = '/gripper_right/joint_trajectory_controller/follow_joint_trajectory'
 
+        MIMIC_ACTION_TOPIC = '/set_mimic_action'
+
+
         queue_size = 0
 
         # BASE
@@ -333,12 +339,19 @@ class ROSBridge(object):
 
         # MIMIC
         if not fakerun and isLive and exec_mimic:
+
+            self.mimic_action_call = actionlib.SimpleActionClient(MIMIC_ACTION_TOPIC, SetMimicAction)
+            if not self.mimic_action_call.wait_for_server(timeout=rospy.Duration(timeout)):
+                PrettyOutput.init_exit_msg('MIMIC')
+
+            """
             try:
                 rospy.wait_for_service(MIMIC_SERVICE_TOPIC, timeout=timeout)
             except rospy.ROSException:
                 PrettyOutput.init_exit_msg('MIMIC')
 
             self.mimic_call = rospy.ServiceProxy(MIMIC_SERVICE_TOPIC, SetMimic)
+            """
         else:
             self.mimic_call = ROSBridge.Dummy('MIMIC').param_call
 
@@ -502,7 +515,8 @@ class ROSBridge(object):
 
             if self.exec_mimic and timeline.MIMIC[step] is not None:
                 #print timeline.MIMIC[step]
-                self.mimic_call(timeline.MIMIC[step])
+                self.mimic_action_call.send_goal(timeline.MIMIC[step])
+                #self.mimic_call(timeline.MIMIC[step])
 
 
             if self.exec_led and timeline.LED[step] is not None:
@@ -869,7 +883,11 @@ class Timeline(object):
         self.appendVelArmRight(j1=data)
 
     def appendMimic(self, name='default', speed=0.0, repeat=0):
-        self.MIMIC.append(SetMimicRequest(name, speed, repeat))
+        mag = SetMimicGoal()
+        mag.mimic = name
+        mag.speed = speed
+        mag.repeat = repeat
+        self.MIMIC.append(mag)
 
     def appendLed(self, r=0, g=1, b=0.7, a=0.4, frequency=0.25, mode=3):
         luminosity_scale = 1
@@ -1177,7 +1195,8 @@ class ArmMovement(object):
 
     pose_run_arms = {'p1': np.radians(-60), 'p2': np.radians(-75),
                      'p3': np.radians(80), 'p4': np.radians(105),
-                     'p5': np.radians(40), 'p6': np.radians(20)}
+                     'p5': np.radians(40), 'p6': np.radians(20),
+                     'p7': -0.83}
 
 
     pose_cheer_arms_up = {'p1': np.radians(-172), 'p2': np.radians(-83),
@@ -1630,7 +1649,7 @@ class BoringScene_1_2_3(BaseScene):
         self.appendLed()
         self.syncTimeline()
 
-    def act_3_move_corner_shock(self, radius=-1.5, duration=9.0, shocktime=1.75, premimic_time=3):
+    def act_3_move_corner_shock(self, radius=-1.5, duration=9.0, shocktime=1.75, premimic_time=4.5):
         self.syncTimeline()
 
         tlx, tlth = self.circular_path(radius=radius, phi=-np.radians(90),
@@ -1639,7 +1658,7 @@ class BoringScene_1_2_3(BaseScene):
         self.appendTH(tlth)
 
         self.MIMIC.extend([None]*self.calc_samples(duration-premimic_time))
-        self.appendMimic('surprised')
+        self.appendMimic('surprised', repeat=5)
 
         self.syncTimeline()
 
@@ -1665,13 +1684,12 @@ class RunAwayScene_4(BaseScene):
 
     def bridge_act_4_arms_startpos(self, dotime=8):
         self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_run_arms)))
+        self.appendMimic('search', speed=1.0/1.5)
+        self.appendLed(frequency=0.25/1.5)
         self.syncTimeline()
 
     def act_4_run_away(self, dotime=15, enable_base=False):
         self.syncTimeline()
-        self.appendMimic('search', speed=1.0/1.5)
-        self.appendLed(frequency=0.25/1.5)
-
         self.appendArms(self.movePose(duration=1, pose=ArmMovement.pose_run_arms))
 
         self.syncTimeline()
@@ -1745,10 +1763,6 @@ class FindingRoseScene_5(BaseScene):
     def act_5_2_grip_rose(self):
         self.syncTimeline()
 
-
-        #self.appendX(self.lin(velocity=0, duration=8))
-        #self.syncTimeline()
-
         self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_close)])
         self.appendX(self.lin(velocity=0, duration=1))
         self.syncTimeline()
@@ -1794,6 +1808,7 @@ class ThePresentScene_6(BaseScene):
 
     def bridge_act_6_arm_right_startpos(self, dotime=8):
         jtp_flow_data = [list(), list()]
+        jtp_flow_data[0].append(JTP(rel_time=dotime, **self.inject_zero_velocity(ArmMovement.pose_boring_walk_front_back_c1)))
         jtp_flow_data[1].append(JTP(rel_time=dotime, **self.inject_zero_velocity(ArmMovement.pose_carry_rose_front_right)))
         self.appendArms(jtp_flow_data, True)
 
@@ -1817,7 +1832,7 @@ class ThePresentScene_6(BaseScene):
         self.syncTimeline()
 
         self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_open)])
-
+        self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_close)])
         # waiting...
         self.appendX(self.lin(velocity=0, duration=wait_duration))
 
@@ -1830,7 +1845,7 @@ class ThePresentScene_6(BaseScene):
         self.appendGripperRight([JTP(0, **GripperMovement.gripper_pose_close)])
         self.appendX(self.lin(velocity=0, duration=1))
 
-        self.appendMimic('laugh')
+        self.appendMimic('laugh', repeat=10)
 
         #go back...
 
@@ -2245,10 +2260,10 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/sc8', cheer.act_8_cheering_turn, cheer)
     sh.add_service_callback('scenario/br9', cheer.bridge_act_9_arms_startpos, cheer)
     sh.add_service_callback('scenario/sc9', cheer.act_9_drumming_rotmove_side_drive, cheer)
-    sh.add_service_callback('scenario/br10', dummy.not_yet_implemented, dummy)
+    #sh.add_service_callback('scenario/br10', dummy.not_yet_implemented, dummy)
     sh.add_service_callback('scenario/sc10', cheer.act_10_corner_rotation, cheer)
 
-    sh.add_service_callback('scenario/br11', dummy.not_yet_implemented, dummy)
+    #sh.add_service_callback('scenario/br11', dummy.not_yet_implemented, dummy)
     sh.add_service_callback('scenario/sc11', ending.act_11_the_end, ending)
     sh.add_service_callback('scenario/test1', test.mimic, test)
     sh.add_service_callback('scenario/test2', test.led, test)
