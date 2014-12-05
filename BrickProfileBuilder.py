@@ -25,7 +25,6 @@ import actionlib
 
 # ROS MSGS
 
-from cob_mimic.msg import SetMimicAction
 from geometry_msgs.msg import Twist
 from control_msgs.msg import FollowJointTrajectoryAction
 from control_msgs.msg import FollowJointTrajectoryGoal
@@ -37,6 +36,7 @@ from actionlib_msgs.msg import GoalStatus
 import numpy as np
 
 from scipy import integrate
+from scipy import interpolate
 from scipy.misc import comb
 
 # PYTHON IMPORTS
@@ -251,7 +251,7 @@ class Plotter(object):
         accwarn = np.logical_or(accwarn1, accwarn2)
         accwarn = np.logical_or(accwarn, accwarn3)
 
-        marker_style = dict(alpha=0.4, markersize=10)
+        marker_style = dict(alpha=0.4, markersize=15)
 
 
         for i in range(len(x)):
@@ -269,10 +269,10 @@ class Plotter(object):
             if decy[i]:
                 ax1.plot(x[i], y[i], 'v', color=(0.8, 0, 0), **marker_style)
 
-        for i in range(len(x))[::int(self.timeline.profile.rate/2)]:
-            text = '\n%s' % np.round(self.tdata[i], 1)
-            ax1.text(x[i], y[i], text, fontsize=8, alpha=0.15)
-            ax1.plot(x[i], y[i], '.', color=(0, 0, 0), alpha=0.15)
+        for i in range(len(x))[::int(self.timeline.profile.rate)]:
+            text = '\n%s' % int(np.round(self.tdata[i], 0))
+            ax1.text(x[i], y[i], text, fontsize=10, alpha=0.40)
+            ax1.plot(x[i], y[i], '.', color=(0, 0, 0), alpha=0.20)
 
 
         plt.tight_layout()
@@ -883,6 +883,8 @@ class Timeline(object):
         self.appendVelArmRight(j1=data)
 
     def appendMimic(self, name='default', speed=0.0, repeat=0):
+        if not isLive:
+            return
         mag = SetMimicGoal()
         mag.mimic = name
         mag.speed = speed
@@ -954,7 +956,7 @@ class Timeline(object):
             remaining_samples = max_samples - len(sample_line)
             shape = (remaining_samples, data_array_size) if data_array_size > 0 else (remaining_samples)
             fill_data = list_generator(shape, *list_generator_args)
-
+            #print fill_data
             if isinstance(args[idx], np.ndarray):
                 args[idx] = np.append(sample_line, fill_data, axis=0)
             elif isinstance(args[idx], list):
@@ -964,6 +966,7 @@ class Timeline(object):
 
     def get_max_length_from_timelines(self):
         timelines = [self.TLX, self.TLY, self.TLTH, self.ARML_GOAL, self.ARMR_GOAL, self.ARML_VEL, self.ARMR_VEL]
+        #print map(len, timelines)
         return max(map(len, timelines))
 
     def __len__(self):
@@ -1000,11 +1003,11 @@ class Bezier(object):
 
         return xvals[::-1], yvals[::-1]
 
-    def createBezier(self, points, duration=0):
+    def createBezier(self, points, duration=0, const_lin_vel=None):
         if isinstance(points, list):
             points = np.array(points, np.float)
 
-        nSamples=duration*self.profile.rate
+        nSamples = duration * self.profile.rate
 
 
         xvals, yvals = self.bezier_curve(points, nTimes=nSamples)
@@ -1013,21 +1016,38 @@ class Bezier(object):
         ydiff = np.diff(yvals)
 
         rel_distance = np.sqrt(xdiff**2 + ydiff**2)
+
+        if const_lin_vel is not None:
+            abs_distance = np.sqrt(xvals**2 + yvals**2)
+            abs_timebase = np.arange(0, len(abs_distance) * self.profile.sample_time, self.profile.sample_time)
+            max_abs_distance = abs_distance[-1]
+            new_duration = max_abs_distance / const_lin_vel
+            fix_dist = np.arange(0, max_abs_distance, const_lin_vel * self.profile.sample_time)
+            fix_dist_timebase = interpolate.barycentric_interpolate(abs_distance, abs_timebase, fix_dist)
+            print fix_dist_timebase
+
+
+
         abs_phi = np.arctan2(xdiff, ydiff)
 
 
 
         rel_phi = np.diff(abs_phi)
+        start_phi = np.array([0], np.float)
+        rel_phi = np.append(start_phi, rel_phi)
         corridx = [(idx+1, 1 if phi < 0 else -1) for idx, phi in enumerate(rel_phi) if abs(phi) > 6]
         for k, v in corridx:
             abs_phi[k:] += np.pi*2*v
         rel_phi = np.diff(abs_phi)
+        start_phi = np.array([0], np.float)
+        rel_phi = np.append(start_phi, rel_phi)
+        rel_phi = np.append(rel_phi, start_phi)
 
         velocity = rel_distance / self.profile.sample_time
         theta_velocity = rel_phi / self.profile.sample_time
 
 
-        return velocity, theta_velocity*-1
+        return velocity, (theta_velocity*-1)
 
 
 
@@ -1376,17 +1396,18 @@ class Bricks(object):
 
 
         absphi = integrate.cumtrapz(tlth*self.profile.sample_time)
-        absphi = np.append(absphi, np.array([0]))
+        #absphi = np.append(absphi, np.array([0]))
+        absphi  = absphi[:-1]
 
         tlx = velocity_start_x * np.cos(absphi) - velocity_start_y * np.sin(absphi)
         tly = velocity_start_x * -np.sin(absphi) + velocity_start_y * np.cos(absphi)
 
-        print velocity_start_x, velocity_start_y
+        #print velocity_start_x, velocity_start_y
 
         if velocity_start_y < 0:
             tlx *= -1
 
-        return tlx, tly, tlth
+        return tlx, tly, tlth[1:-1]
 
 
 class BaseScene(Timeline, Bricks, Bezier, ArmMovement, GripperMovement):
@@ -2069,13 +2090,20 @@ class CheeringScene_7_8_9_10(BaseScene):
         self.appendArms(self.movePose(duration=goto_drum_pose_duration, pose=pargs))
 
         tlx, tly, tlth = self.const_direction_rotation(velocity_start_x=lin_speed, velocity_start_y=0, phi=phi, duration=rot_duration)
+        print map(len, [tlx, tly, tlth])
+        for x in zip(tlx, tly, tlth): print x
         self.appendX(tlx)
         self.appendY(tly)
         self.appendTH(tlth)
 
-        self.syncTimeline()
+
+        self.syncTimelineArmVelocity()
+
+        print '#',
+        self.get_max_length_from_timelines()
 
         self.appendY(self.lin(-lin_speed, lin_duration))
+
 
         self.appendVelArmLeft(j1=sin*-j1speed, j4=sin*j4speed, j5=sin*j5speed, j6=sin*j6speed)
         for _ in range(ndrums):
@@ -2125,18 +2153,22 @@ class CheeringScene_7_8_9_10(BaseScene):
         ypoints *= scaley
         points = zip(xpoints, ypoints)
 
-        x, th = self.createBezier(points, duration=duration)
+        x, th = self.createBezier(points, duration=duration)#, const_lin_vel=0.3)
+        print len(x), len(th)
+
 
         self.appendX(self.acc(velocity_start=0, velocity_end=x[0], duration=1))
         self.syncTimeline()
 
 
         _, tlth = self.circular_path(radius=0, phi=-np.pi*2, duration=duration, acc_percentage=0.2, dec_percentage=0.2)
-        tlth = tlth[1:-1]
+
+        absphi = integrate.cumtrapz(tlth*self.profile.sample_time)
+
+        #tlth = tlth#[1:-1]
         thover = th + tlth
 
-        absphi = integrate.cumtrapz(tlth*self.profile.sample_time, initial=0)
-        absphi = np.append(absphi, np.array([0]))
+        #absphi = np.append(absphi, np.array([0]))
 
         absphi *= np.pi*2/np.abs(absphi).max()
 
@@ -2188,7 +2220,7 @@ if __name__ == '__main__':
     #boring.lab_act_2_2_away_from_window()
     #boring.act_2_2_away_from_window()
 
-    boring.act_3_move_corner_shock()
+    #boring.act_3_move_corner_shock()
 
     #discover.lab_act_4_run_away()
     #discover.act_4_run_away()
@@ -2198,7 +2230,7 @@ if __name__ == '__main__':
     #findrose.act_5_3_gripper_away_from_rose()
     #findrose.act_5_4_drive_away()
 
-    #present.act_6_give_rose
+    #present.act_6_give_rose()
 
     #cheer.bridge_act_7_arms_startpos()
     #cheer.lab_act_7_cheer_arms_up()
@@ -2211,7 +2243,7 @@ if __name__ == '__main__':
     #cheer.act_9_drumming_rotmove_side_drive()
 
     #cheer.lab_act_10_corner_rotation()
-    #cheer.act_10_corner_rotation()
+    cheer.act_10_corner_rotation()
 
 
 
@@ -2231,11 +2263,11 @@ if __name__ == '__main__':
     # SETTING MASTER TIMELINE
     ##########################
 
-    masterTimeline = boring
+    #masterTimeline = boring
     #masterTimeline = discover
     #masterTimeline = findrose
     #masterTimeline = present
-    #masterTimeline = cheer
+    masterTimeline = cheer
     #masterTimeline = test
 
     sh = ServiceHandler()
