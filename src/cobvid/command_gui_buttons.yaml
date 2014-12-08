@@ -71,7 +71,7 @@ group9:
     ['(8) 360° ROT', trigger, sc8],
     ['BR -> (9) ARMS', trigger, br9],
     ['(9) DRUMS', trigger, sc9],
-    ['BR -> (10)', trigger, br10],
+    ['BR -> (10) ALL', trigger, br10],
     ['(10) CORNER', trigger, sc10],
     ]
 group91:

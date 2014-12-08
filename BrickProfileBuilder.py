@@ -1008,7 +1008,7 @@ class Bezier(object):
 
         return xvals[::-1], yvals[::-1]
 
-    def createBezier(self, points, duration=0, const_lin_vel=None):
+    def createBezier(self, points, duration=0):
         if isinstance(points, list):
             points = np.array(points, np.float)
 
@@ -1021,23 +1021,9 @@ class Bezier(object):
         ydiff = np.diff(yvals)
 
         rel_distance = np.sqrt(xdiff**2 + ydiff**2)
-
-        if const_lin_vel is not None:
-            abs_distance = np.sqrt(xvals**2 + yvals**2)
-            abs_timebase = np.arange(0, len(abs_distance) * self.profile.sample_time, self.profile.sample_time)
-            max_abs_distance = abs_distance[-1]
-            new_duration = max_abs_distance / const_lin_vel
-            fix_dist = np.arange(0, max_abs_distance, const_lin_vel * self.profile.sample_time)
-            fix_dist_timebase = interpolate.barycentric_interpolate(abs_distance, abs_timebase, fix_dist)
-            print fix_dist_timebase
-
-
-
         abs_phi = np.arctan2(xdiff, ydiff)
-
-
-
         rel_phi = np.diff(abs_phi)
+
         start_phi = np.array([0], np.float)
         rel_phi = np.append(start_phi, rel_phi)
         corridx = [(idx+1, 1 if phi < 0 else -1) for idx, phi in enumerate(rel_phi) if abs(phi) > 6]
@@ -1048,9 +1034,9 @@ class Bezier(object):
         rel_phi = np.append(start_phi, rel_phi)
         rel_phi = np.append(rel_phi, start_phi)
 
+
         velocity = rel_distance / self.profile.sample_time
         theta_velocity = rel_phi / self.profile.sample_time
-
 
         return velocity, theta_velocity*-1
 
@@ -2047,11 +2033,6 @@ class CheeringScene_7_8_9_10(BaseScene):
     def bridge_act_9_arms_startpos(self, dotime=8):
         self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_run_arms)))
         self.appendMimic('laugh')
-        #self.appendArms(self.movePose(duration=dotime/2, pose=ArmMovement.pose_cheer_drum))
-
-    #def lab_act_9_drumming_rotmove_side_drive(self):
-    #    self.act_9_drumming_rotmove_side_drive(lin_speed=0.15, acc_duration=1, rot_duration=2, ndrums=3,
-    #                                           pre_lin_duration=3, post_lin_duration=3)
 
     def act_9_drumming_rotmove_side_drive(self, lin_speed=0.25, acc_duration=1, rot_duration=2, ndrums=3,
                                           pre_lin_duration=3, post_lin_duration=3):
@@ -2146,11 +2127,10 @@ class CheeringScene_7_8_9_10(BaseScene):
 
         self.appendX(self.acc(velocity_start=lin_speed, velocity_end=0, duration=acc_duration))
 
-    #def lab_act_10_corner_rotation(self):
-    #    self.act_10_corner_rotation(duration=16, scalex=0.1, scaley=0.1)
 
-    def bridge_10_mimic(self, dotime=8):
-        self.appendMimic('laugh')
+    def bridge_act_10_all(self, dotime=8, slowmo=1):
+        self.appendMimic('laugh', speed=1.0/slowmo)
+        self.appendLed(frequency=0.25/slowmo)
 
         jtp_flow_data = [list(), list()]
         jtp_flow_data[0].append(JTP(rel_time=dotime, **ArmMovement.pose_right_folded_back))
@@ -2171,18 +2151,16 @@ class CheeringScene_7_8_9_10(BaseScene):
         ypoints *= scaley
         points = zip(xpoints, ypoints)
 
-        x, th = self.createBezier(points, duration=duration)#, const_lin_vel=0.3)
+        x, th = self.createBezier(points, duration=duration)
         #print len(x), len(th)
-
-        self.appendX(self.acc(velocity_start=0, velocity_end=x[0], duration=1))
-        self.syncTimeline()
 
 
         _, tlth = self.circular_path(radius=0, phi=-np.pi*2, duration=duration, acc_percentage=0.2, dec_percentage=0.2)
 
+
         absphi = integrate.cumtrapz(tlth*self.profile.sample_time)
 
-        #tlth = tlth#[1:-1]
+        #tlth = tlth[:-1]
         thover = th + tlth
 
         #absphi = integrate.cumtrapz(tlth*self.profile.sample_time, initial=0)
@@ -2192,6 +2170,10 @@ class CheeringScene_7_8_9_10(BaseScene):
 
         xvel = x * np.cos(absphi)
         yvel = x * -np.sin(absphi)
+
+
+        self.appendX(self.acc(velocity_start=0, velocity_end=x[0], duration=1))
+        self.syncTimeline()
 
         self.appendX(xvel)
         self.appendY(yvel)
@@ -2226,6 +2208,9 @@ if __name__ == '__main__':
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
 
     cob4_2_profile = Profile(rate=30, max_linear_velocity=0.7, max_angular_velocity=2.7,
+                             max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.7  )
+
+    cob4_2_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.7  )
 
     dummy = DummyScene(profile=cob4_2_profile)
@@ -2272,9 +2257,9 @@ if __name__ == '__main__':
     #cheer.act_9_drumming_rotmove_side_drive()
 
     #cheer.lab_act_10_corner_rotation()
-    #cheer.act_10_corner_rotation()
+    cheer.act_10_corner_rotation()
 
-    ending.act_11_the_end()
+    #ending.act_11_the_end()
 
     #test.test_map()
     #test.test_speed_linear()
@@ -2296,9 +2281,9 @@ if __name__ == '__main__':
     #masterTimeline = discover
     #masterTimeline = findrose
     #masterTimeline = present
-    #masterTimeline = cheer
+    masterTimeline = cheer
     #masterTimeline = test
-    masterTimeline = ending
+    #masterTimeline = ending
 
     sh = ServiceHandler()
     sh.add_service_callback('scenario/br1', boring.bridge_act_1_arms_startpos, boring)
@@ -2323,7 +2308,7 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/sc8', cheer.act_8_cheering_turn, cheer)
     sh.add_service_callback('scenario/br9', cheer.bridge_act_9_arms_startpos, cheer)
     sh.add_service_callback('scenario/sc9', cheer.act_9_drumming_rotmove_side_drive, cheer)
-    sh.add_service_callback('scenario/br10', cheer.bridge_10_mimic, cheer)
+    sh.add_service_callback('scenario/br10', cheer.bridge_act_10_all, cheer)
     sh.add_service_callback('scenario/sc10', cheer.act_10_corner_rotation, cheer)
 
     sh.add_service_callback('scenario/br11', ending.bridge_act_11_mimic, ending)
