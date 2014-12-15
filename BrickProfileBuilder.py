@@ -40,7 +40,6 @@ from scipy import interpolate
 from scipy.misc import comb
 
 # PYTHON IMPORTS
-import time
 import sys
 import os
 import string
@@ -202,9 +201,7 @@ class Plotter(object):
         plt.tight_layout()
 
     def plot_map(self):
-
         import matplotlib.pyplot as plt
-        import matplotlib.collections as collections
 
         fig, (ax1) = plt.subplots(nrows=1, ncols=1)
 
@@ -314,7 +311,6 @@ class ROSBridge(object):
         ARM_RIGHT_VELOCITY_TOPIC = '/arm_right/joint_group_velocity_controller/command'
         ARM_RIGHT_TRAJECTORY_TOPIC = '/arm_right/joint_trajectory_controller/follow_joint_trajectory'
 
-        MIMIC_SERVICE_TOPIC = 'mimic'
         LED_TORSO_SERVICE_TOPIC = 'light_torso/mode'
         LED_BASE_SERVICE_TOPIC = 'light_base/mode'
 
@@ -360,15 +356,12 @@ class ROSBridge(object):
         if not fakerun and isLive and exec_led:
             try:
                 rospy.wait_for_service(LED_TORSO_SERVICE_TOPIC, timeout=timeout)
-                #rospy.wait_for_service(LED_BASE_SERVICE_TOPIC, timeout=timeout)
             except rospy.ROSException:
                 PrettyOutput.init_exit_msg('LEDs')
 
             self.led_torso_call = rospy.ServiceProxy(LED_TORSO_SERVICE_TOPIC, SetLightMode)
-            #self.led_base_call = rospy.ServiceProxy(LED_BASE_SERVICE_TOPIC, SetLightMode)
         else:
             self.led_torso_call = ROSBridge.Dummy('LED').param_call
-            #self.led_base_call = ROSBridge.Dummy('LED').param_call
 
 
         if not fakerun and isLive:
@@ -518,15 +511,12 @@ class ROSBridge(object):
                                 synchronous_trajectory=self.new_st_gripper_right)
 
             if self.exec_mimic and timeline.MIMIC[step] is not None:
-                #print timeline.MIMIC[step]
                 self.mimic_action_call.send_goal(timeline.MIMIC[step])
-                #self.mimic_call(timeline.MIMIC[step])
 
 
             if self.exec_led and timeline.LED[step] is not None:
                 print timeline.LED[step]
                 self.led_torso_call(timeline.LED[step])
-                #self.led_base_call(timeline.LED[step])
 
             rospy.sleep(timeline.profile.sample_time)
 
@@ -1014,7 +1004,6 @@ class Bezier(object):
 
         nSamples = duration * self.profile.rate
 
-
         xvals, yvals = self.bezier_curve(points, nTimes=nSamples)
 
         xdiff = np.diff(xvals)
@@ -1022,8 +1011,8 @@ class Bezier(object):
 
         rel_distance = np.sqrt(xdiff**2 + ydiff**2)
         abs_phi = np.arctan2(xdiff, ydiff)
-        rel_phi = np.diff(abs_phi)
 
+        rel_phi = np.diff(abs_phi)
         start_phi = np.array([0], np.float)
         rel_phi = np.append(start_phi, rel_phi)
         corridx = [(idx+1, 1 if phi < 0 else -1) for idx, phi in enumerate(rel_phi) if abs(phi) > 6]
@@ -1033,7 +1022,6 @@ class Bezier(object):
         start_phi = np.array([0], np.float)
         rel_phi = np.append(start_phi, rel_phi)
         rel_phi = np.append(rel_phi, start_phi)
-
 
         velocity = rel_distance / self.profile.sample_time
         theta_velocity = rel_phi / self.profile.sample_time
@@ -1086,7 +1074,6 @@ class JTP(object):
 
         return JTP(jtp.time_from_start, *args)
 
-
     @staticmethod
     def _updateTimes(jtp_list):
         cur_time = 0
@@ -1121,7 +1108,6 @@ class JTP(object):
     def __repr__(self):
         return 'TimeFromstart: %s - Positions: %s - Velocities: %s' % \
                (self.point.time_from_start, [np.round(np.degrees(p)) for p in self.point.positions], self.point.velocities)
-               #(self.point.time_from_start, self.point.positions, self.point.velocities)
 
 class NewSynchronousTrajectory(object):
     def __init__(self, logic_name, joint_trajectory_topic, joint_names, do_init=False, timeout=5):
@@ -1385,15 +1371,11 @@ class Bricks(object):
     def const_direction_rotation(self, velocity_start_x, velocity_start_y, phi, duration):
         tlx_, tlth = self.circular_path(radius=1, phi=phi, duration=duration, acc_percentage=0.2, dec_percentage=0.2)
 
-
         absphi = integrate.cumtrapz(tlth*self.profile.sample_time)
-        #absphi = np.append(absphi, np.array([0]))
         absphi  = absphi[:-1]
 
         tlx = velocity_start_x * np.cos(absphi) - velocity_start_y * np.sin(absphi)
         tly = velocity_start_x * -np.sin(absphi) + velocity_start_y * np.cos(absphi)
-
-        #print velocity_start_x, velocity_start_y
 
         if velocity_start_y < 0:
             tlx *= -1
@@ -1404,7 +1386,6 @@ class Bricks(object):
 class BaseScene(Timeline, Bricks, Bezier, ArmMovement, GripperMovement):
     def __init__(self, profile):
             super(BaseScene, self).__init__(profile)
-
 
 class DummyScene(BaseScene):
     def __init__(self, profile):
@@ -1499,11 +1480,6 @@ class StuffToTest(BaseScene):
             print 1.0/freq
             self.syncTimeline()
 
-        #self.appendLed()
-        #self.appendX(self.lin(velocity=0, duration=0.1))
-        #self.syncTimeline()
-
-
     def gripper(self):
         self.appendGripperLeft([JTP(0, **GripperMovement.gripper_pose_open)])
         self.appendX(self.lin(velocity=0, duration=6))
@@ -1527,15 +1503,9 @@ class BoringScene_1_2_3(BaseScene):
     def lab_act_1_slender_around(self):
         self.act_1_slender_around(steps=1, linspeed=0.3, dotime_factor=1)
 
-    def act_1_slender_around(self, steps=2, linspeed=0.3, dotime_factor=2):
-        #dotime = 17
-
+    def act_1_slender_around(self, steps=20, linspeed=0.3, dotime_factor=2):
         dotime = 3.5 * (steps+1) * dotime_factor
-        print dotime
-
         stepduration = dotime / (steps + 1.0)
-
-        print stepduration
 
         sin = self.sin(0, np.pi/2, stepduration/4.0)
         sinrev = sin[::-1]
@@ -1547,7 +1517,6 @@ class BoringScene_1_2_3(BaseScene):
 
         ioscale = 0.55
 
-
         self.appendX(self.lin(velocity=0, duration=stepduration/2.0))
 
         self.syncTimeline()
@@ -1556,6 +1525,9 @@ class BoringScene_1_2_3(BaseScene):
 
         self.syncTimelineBase()
 
+        fillData = [None]*self.calc_samples(1.75)
+        self.ARML_GOAL.extend(fillData)
+        self.ARMR_GOAL.extend(fillData)
         self.appendArms(self.buildSlenderArms(dotime_step=1.75, times=steps*2))
 
         self.appendX(self.lin(velocity=linspeed, duration=stepduration/2.0))
@@ -1567,35 +1539,29 @@ class BoringScene_1_2_3(BaseScene):
         self.appendX(self.lin(velocity=linspeed, duration=stepduration))
 
         for i in range(steps):
-            direction = 1 if (i % 2) else -1
             self.appendX(self.lin(velocity=linspeed, duration=stepduration))
             self.appendTH(cos)
 
-        direction = 1 if (steps % 2) else -1
         self.appendTH(sinrev)
 
-
-        #self.appendX(self.lin(velocity=linspeed, duration=stepduration/2.0))
         self.appendTH(sin*-ioscale)
         self.appendTH(sinrev*-ioscale)
 
-
         self.appendX(self.acc(velocity_start=linspeed, velocity_end=0, duration=stepduration/2.0))
-
 
         self.syncTimeline()
 
     def bridge_act_2_arms_startpos(self, dotime=8):
         self.appendArms(self.movePose(duration=dotime,
                                       pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_front_back_c1)))
-        self.appendMimic('tired')
+        self.appendMimic('bored')
         self.appendLed()
         self.syncTimeline()
 
     def lab_act_2_1_to_window(self):
         self.act_2_1_to_window(radius=-1.5, radius_dotime=12)
 
-    def act_2_1_to_window(self, radius=-2.5, radius_dotime=20):
+    def act_2_1_to_window(self, acc_time=1, lin_time=2, radius=-2.5, radius_dotime=20, armtime=2):
         self.syncTimeline()
 
         self.new_section('annaehern')
@@ -1603,33 +1569,35 @@ class BoringScene_1_2_3(BaseScene):
         tlx, tlth = self.circular_path(radius=radius, phi=-np.pi*7/16, duration=radius_dotime, acc_percentage=0,
                                        dec_percentage=0.5)
 
-        self.appendX(self.acc(velocity_start=0, velocity_end=tlx[0], duration=1))
-        self.appendX(self.lin(tlx[0], 2))
+        self.appendX(self.acc(velocity_start=0, velocity_end=tlx[0], duration=acc_time))
+        self.appendX(self.lin(tlx[0], lin_time))
 
         self.new_section('ausrichtung fenster')
         self.appendX(tlx)
         self.appendTH(tlth)
 
-        #TODO: am ende von den 10 sek
-        self.syncTimeline()
-        self.appendArms(self.movePose(duration=2, pose=ArmMovement.pose_waiting_arms_side))
+        fillData = [None]*self.calc_samples(radius_dotime)
+        self.ARML_GOAL.extend(fillData)
+        self.ARMR_GOAL.extend(fillData)
+        left_data, right_data = self.movePose(duration=armtime, pose=ArmMovement.pose_waiting_arms_side)
+        self.ARML_GOAL.append(left_data)
+        self.ARMR_GOAL.append(right_data)
 
-        self.new_section('look')
         self.appendX(self.lin(duration=0.25, velocity=0))
-        self.syncTimeline()
+        self.appendTH(self.lin(duration=0.25, velocity=0))
 
         tlx, tlth = self.circular_path(radius=0, phi=-np.pi/4, duration=3.5, acc_percentage=0.6, dec_percentage=0.4)
         self.appendX(tlx)
         self.appendTH(tlth)
-        self.syncTimeline()
+        self.syncTimelineBase()
 
         self.appendX(self.lin(duration=1, velocity=0))
-        self.syncTimeline()
+        self.syncTimelineBase()
 
         tlx, tlth = self.circular_path(radius=0, phi=np.pi/2, duration=6, acc_percentage=0.4, dec_percentage=0.5)
         self.appendX(tlx)
         self.appendTH(tlth)
-        self.syncTimeline()
+        self.syncTimelineBase()
 
         self.appendX(self.lin(duration=1, velocity=0))
         self.syncTimeline()
@@ -1638,10 +1606,8 @@ class BoringScene_1_2_3(BaseScene):
         self.act_2_2_away_from_window(arm_dotime=2, lin_time=0)
 
     def act_2_2_away_from_window(self, arm_dotime=2, lin_time=6):
-
         self.new_section('\nenfernen vom fenster')
 
-        dotime = 2
         self.appendArms(self.movePose(duration=arm_dotime, pose=ArmMovement.pose_boring_walk_front_back_c1))
 
         self.appendY(self.lin(velocity=0, duration=0.5))
@@ -1661,7 +1627,7 @@ class BoringScene_1_2_3(BaseScene):
         self.appendLed()
         self.syncTimeline()
 
-    def act_3_move_corner_shock(self, radius=-1.5, duration=9.0, shocktime=1.75, premimic_time=4.5):
+    def act_3_move_corner_shock(self, radius=-1.5, duration=9.0, shocktime=1.75, premimic_time=4.5, lin_time=6):
         self.syncTimeline()
 
         tlx, tlth = self.circular_path(radius=radius, phi=-np.radians(90),
@@ -1676,7 +1642,7 @@ class BoringScene_1_2_3(BaseScene):
 
         self.appendLed(frequency=1)
 
-        tlx, tlth = self.circular_path(radius=0, phi=-np.radians(45), duration=1,
+        tlx, tlth = self.circular_path(radius=0, phi=-np.radians(70), duration=1.5,
                                        acc_percentage=0.5, dec_percentage=0.5)
         self.appendX(tlx)
         self.appendTH(tlth)
@@ -1689,6 +1655,16 @@ class BoringScene_1_2_3(BaseScene):
 
         self.syncTimeline()
 
+        self.appendY(self.lin(velocity=0, duration=0.5))
+        self.appendY(self.lin_acc(velocity_start=0, velocity_lin=0.15, velocity_end=0, acc_percentage=0.3, dec_percentage=0.3, duration=3.5))
+
+        self.appendTH(self.lin_acc(velocity_start=0, velocity_lin=0.55, velocity_end=0, acc_percentage=0.35, dec_percentage=0.25, duration=5))
+
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=-0.08, velocity_end=0, acc_percentage=0.7, dec_percentage=0.3, duration=1.5))
+
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.2, velocity_end=0, acc_percentage=0.15, dec_percentage=0.2, duration=5 + lin_time))
+
+        self.syncTimeline()
 
 class RunAwayScene_4(BaseScene):
     def __init__(self, profile):
@@ -1755,6 +1731,10 @@ class FindingRoseScene_5(BaseScene):
         jtp_flow_data[1].append(JTP(rel_time=dotime, **ArmMovement.pose_home))
         jtp_flow_data[1].append(JTP(rel_time=dotime, **self.inject_zero_velocity(ArmMovement.pose_right_folded_back)))
         self.appendArms(jtp_flow_data, True)
+
+        self.appendMimic('happy')
+        self.appendLed(frequency=1)
+
         self.syncTimeline()
 
     def calibrate_act_5_pose_grip_rose_right(self, dotime=8):
@@ -1763,8 +1743,6 @@ class FindingRoseScene_5(BaseScene):
         self.appendArms(jtp_flow_data, True)
 
     def act_5_1_griper_to_rose(self):
-        self.appendMimic('happy')
-        self.appendLed(frequency=1)
 
         jtp_flow_data = [list(), list()]
 
@@ -1802,7 +1780,6 @@ class FindingRoseScene_5(BaseScene):
         jtp_flow_data[1].append(JTP(rel_time=2, **pargs))
 
         self.appendArms(jtp_flow_data, True)
-        #self.syncTimeline()
 
     def act_5_4_drive_away(self):
 
@@ -1861,6 +1838,8 @@ class ThePresentScene_6(BaseScene):
 
         self.syncTimeline()
 
+
+
         jtp_flow_data = [list(), list()]
         jtp_flow_data[1].append(JTP.get_mirrored_jtp(JTP(rel_time=acc_duration*3, **self.inject_zero_velocity(ArmMovement.pose_boring_walk_front_back_c1))))
         self.appendArms(jtp_flow_data, True)
@@ -1890,8 +1869,6 @@ class ThePresentScene_6(BaseScene):
         self.syncTimeline()
 
         self.appendX(self.acc(velocity_start=0, velocity_end=-velocity, duration=acc_duration*3))
-
-
         self.appendX(self.lin(velocity=-velocity, duration=lin_duration))
         self.appendX(self.acc(velocity_start=-velocity, velocity_end=0, duration=acc_duration))
 
@@ -1913,8 +1890,6 @@ class CheeringScene_7_8_9_10(BaseScene):
         lintime = dotime * 2 * ntimes
         if enable_base:
             self.appendX(self.lin_acc(velocity_start=0, velocity_lin=lin_speed, velocity_end=0, duration=lintime))
-
-        dotime = 1
 
         zero = self.lin(0, dotime)
         cos_0_pi = self.cos(0, np.pi, dotime)
@@ -1989,21 +1964,14 @@ class CheeringScene_7_8_9_10(BaseScene):
 
     def bridge_act_8_arms_startpos(self, dotime=8):
         self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_cheer_arms_up)))
-
+        self.appendMimic('laugh')
         self.syncTimeline()
 
-    #def lab_act_8_cheering_turn(self):
-    #    self.act_8_cheering_turn(lin_speed=0.55, acctime=1.5, phi=np.pi*2, rot_duration=8, arm_duration=2.75)
-
     def act_8_cheering_turn(self, lin_speed=0.55, acctime=1.5, phi=np.pi*2, rot_duration=8, arm_duration=2.75):
-
-        self.appendMimic('laugh')
-
         arm_sleep = rot_duration - arm_duration * 2
         assert arm_sleep >= 0
 
         arm_sleep_samples = int(self.calc_samples(arm_sleep))
-
 
         self.syncTimeline()
 
@@ -2029,14 +1997,12 @@ class CheeringScene_7_8_9_10(BaseScene):
 
         self.syncTimeline()
 
-
     def bridge_act_9_arms_startpos(self, dotime=8):
         self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_run_arms)))
         self.appendMimic('laugh')
 
     def act_9_drumming_rotmove_side_drive(self, lin_speed=0.25, acc_duration=1, rot_duration=2, ndrums=3,
                                           pre_lin_duration=3, post_lin_duration=3):
-
         # SETUP
         ########
 
@@ -2127,10 +2093,8 @@ class CheeringScene_7_8_9_10(BaseScene):
 
         self.appendX(self.acc(velocity_start=lin_speed, velocity_end=0, duration=acc_duration))
 
-
-    def bridge_act_10_all(self, dotime=8, slowmo=1):
-        self.appendMimic('laugh', speed=1.0/slowmo)
-        self.appendLed(frequency=0.25/slowmo)
+    def bridge_10_mimic(self, dotime=8):
+        self.appendMimic('laugh')
 
         jtp_flow_data = [list(), list()]
         jtp_flow_data[0].append(JTP(rel_time=dotime, **ArmMovement.pose_right_folded_back))
@@ -2140,7 +2104,6 @@ class CheeringScene_7_8_9_10(BaseScene):
         self.syncTimeline()
 
     def act_10_corner_rotation(self, duration=16, scalex=1, scaley=1):
-
         points = [[0, 0], [4, 0], [1, 3]]
 
         points = np.array(points, np.float)
@@ -2152,32 +2115,25 @@ class CheeringScene_7_8_9_10(BaseScene):
         points = zip(xpoints, ypoints)
 
         x, th = self.createBezier(points, duration=duration)
-        #print len(x), len(th)
 
+        self.appendX(self.acc(velocity_start=0, velocity_end=x[0], duration=1))
+        self.syncTimeline()
 
         _, tlth = self.circular_path(radius=0, phi=-np.pi*2, duration=duration, acc_percentage=0.2, dec_percentage=0.2)
 
-
         absphi = integrate.cumtrapz(tlth*self.profile.sample_time)
-
-        #tlth = tlth[:-1]
         thover = th + tlth
-
-        #absphi = integrate.cumtrapz(tlth*self.profile.sample_time, initial=0)
-        #absphi = np.append(absphi, np.array([0]))
 
         absphi *= np.pi*2/np.abs(absphi).max()
 
         xvel = x * np.cos(absphi)
         yvel = x * -np.sin(absphi)
 
-
-        self.appendX(self.acc(velocity_start=0, velocity_end=x[0], duration=1))
-        self.syncTimeline()
-
         self.appendX(xvel)
         self.appendY(yvel)
         self.appendTH(thover)
+
+        self.appendX(self.lin(velocity=x[-1], duration=5))
 
         self.appendX(self.acc(velocity_start=x[-1], velocity_end=0, duration=1))
 
@@ -2203,17 +2159,11 @@ class EndingScene_11(BaseScene):
 
 
 if __name__ == '__main__':
-
-    cob3_3_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
-                             max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.1)
-
     cob4_2_profile = Profile(rate=30, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.7  )
 
-    cob4_2_profile = Profile(rate=100, max_linear_velocity=0.7, max_angular_velocity=2.7,
-                             max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.7  )
-
     dummy = DummyScene(profile=cob4_2_profile)
+    test = StuffToTest(profile=cob4_2_profile)
 
     boring = BoringScene_1_2_3(profile=cob4_2_profile)
     discover = RunAwayScene_4(profile=cob4_2_profile)
@@ -2221,8 +2171,6 @@ if __name__ == '__main__':
     present = ThePresentScene_6(profile=cob4_2_profile)
     cheer = CheeringScene_7_8_9_10(profile=cob4_2_profile)
     ending = EndingScene_11(profile=cob4_2_profile)
-
-    test = StuffToTest(profile=cob4_2_profile)
 
 
     #boring.bridge_act_1_arms_startpos()
@@ -2244,7 +2192,7 @@ if __name__ == '__main__':
     #findrose.act_5_3_gripper_away_from_rose()
     #findrose.act_5_4_drive_away()
 
-    #present.act_6_give_rose
+    #present.act_6_give_rose()
 
     #cheer.bridge_act_7_arms_startpos()
     #cheer.lab_act_7_cheer_arms_up()
@@ -2257,7 +2205,7 @@ if __name__ == '__main__':
     #cheer.act_9_drumming_rotmove_side_drive()
 
     #cheer.lab_act_10_corner_rotation()
-    cheer.act_10_corner_rotation()
+    #cheer.act_10_corner_rotation()
 
     #ending.act_11_the_end()
 
@@ -2277,11 +2225,11 @@ if __name__ == '__main__':
     # SETTING MASTER TIMELINE
     ##########################
 
-    #masterTimeline = boring
+    masterTimeline = boring
     #masterTimeline = discover
     #masterTimeline = findrose
     #masterTimeline = present
-    masterTimeline = cheer
+    #masterTimeline = cheer
     #masterTimeline = test
     #masterTimeline = ending
 
@@ -2308,7 +2256,7 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/sc8', cheer.act_8_cheering_turn, cheer)
     sh.add_service_callback('scenario/br9', cheer.bridge_act_9_arms_startpos, cheer)
     sh.add_service_callback('scenario/sc9', cheer.act_9_drumming_rotmove_side_drive, cheer)
-    sh.add_service_callback('scenario/br10', cheer.bridge_act_10_all, cheer)
+    sh.add_service_callback('scenario/br10', cheer.bridge_10_mimic, cheer)
     sh.add_service_callback('scenario/sc10', cheer.act_10_corner_rotation, cheer)
 
     sh.add_service_callback('scenario/br11', ending.bridge_act_11_mimic, ending)
