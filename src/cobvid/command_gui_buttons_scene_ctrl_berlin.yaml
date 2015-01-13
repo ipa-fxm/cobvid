@@ -1,0 +1,14 @@
+group75:
+  group_name: 'POSE'
+  component_name: cobvid
+  buttons: [
+    ['(1) DEMO ARMS SIDE', trigger, po1],
+    ['(2) CHEER ARMS UP', trigger, po2],
+    ['(3) CHEER ARMS TURN', trigger, po3],
+    ]
+group78:
+  group_name: 'DEMO'
+  component_name: cobvid
+  buttons: [
+    ['(1) CHEER_TURN', trigger, sc1],
+    ]

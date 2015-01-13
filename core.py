@@ -654,7 +654,7 @@ class ServiceHandler(object):
     def _inplace_restart(self, *args):
         for _ in range(50): print
         PrettyOutput.attation_msg('RESTARTING APPLICATION')
-        os.execv(__file__, sys.argv)
+        os.execv(sys.argv[0], sys.argv)
 
     def _enable_argv(self, argname, argvar):
         if self.is_ros and argvar:
