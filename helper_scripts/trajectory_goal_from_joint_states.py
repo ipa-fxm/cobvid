@@ -26,34 +26,18 @@ class GSRecorder(object):
 
         self.position_data = {'left': list(), 'right': list()}
 
-
     def initRos(self):
         rospy.init_node('goal_state_recorder')
-
         rospy.Subscriber('/joint_states', JointState, self.joint_callback)
-        JointState
-
-        #if self.mode & GSRecorder.MODE_LEFT:
-        #    self.subl = rospy.Subscriber(GSRecorder.TOPIC_LEFT, JointTrajectoryControllerState, self.left_callback)
-
-        #if self.mode & GSRecorder.MODE_RIGHT:
-        #    self.subr = rospy.Subscriber(GSRecorder.TOPIC_RIGHT, JointTrajectoryControllerState, self.right_callback)
-
 
     def joint_callback(self, data):
 
         if 'arm_left_1_joint' in data.name:
-            self.last_data_left = data.positions
+            self.last_data_left = data.position
 
         if 'arm_right_1_joint' in data.name:
-            self.last_data_right = data.positions
+            self.last_data_right = data.position
 
-
-    def left_callback(self, data):
-        self.last_data_left = data.actual.position
-
-    def right_callback(self, data):
-        self.last_data_right = data.actual.position
 
     def grep_data(self, data):
         self.position_data['left'].append(self.last_data_left)
