@@ -2,6 +2,7 @@
 #-*- coding: utf-8 -*-
 
 import rospy
+
 from geometry_msgs.msg import Twist
 from control_msgs.msg import JointTrajectoryControllerState
 
@@ -16,6 +17,9 @@ class GSRecorder(object):
     def __init__(self, mode=MODE_BOTH):
         self.mode = mode
 
+        self.last_data_left = None
+        self.last_data_right = None
+
     def initRos(self):
         rospy.init_node('goal_state_recorder')
 
@@ -25,18 +29,29 @@ class GSRecorder(object):
         if self.mode & GSRecorder.MODE_RIGHT:
             self.subr = rospy.Subscriber(GSRecorder.TOPIC_RIGHT, JointTrajectoryControllerState, self.right_callback)
 
+
     def left_callback(self, data):
-        print 'left'
-        print data
-        print '-'*100
+        self.last_data_left = data.actual
 
     def right_callback(self, data):
-        print 'right'
+        self.last_data_right = data.actual
+
+    def grep_data(self, data):
         print data
-        print '-'*100
+        print self.last_data_left
+        print self.last_data_right
+
 
     def record(self):
         self.initRos()
+        #self.timer.start()
+
+        self.timer = rospy.Timer(rospy.Time(1.0), self.grep_data)
+        rospy.spin()
+        #self.timer.join(1)
+
+        print 'ENDING'
+
         print self.mode
 
 
