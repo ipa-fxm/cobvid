@@ -6,21 +6,11 @@ import yaml
 import os
 import errno
 
-from geometry_msgs.msg import Twist
-from control_msgs.msg import JointTrajectoryControllerState
 from sensor_msgs.msg import JointState
 
 class GSRecorder(object):
-    MODE_LEFT = 0b1
-    MODE_RIGHT = 0b10
-    MODE_BOTH = MODE_LEFT | MODE_RIGHT
 
-    TOPIC_LEFT = '/arm_left/joint_trajectory_controller/state'
-    TOPIC_RIGHT = '/arm_right/joint_trajectory_controller/state'
-
-    def __init__(self, mode=MODE_BOTH):
-        self.mode = mode
-
+    def __init__(self):
         self.last_data_left = None
         self.last_data_right = None
 
@@ -40,23 +30,23 @@ class GSRecorder(object):
 
 
     def grep_data(self, data):
-        self.position_data['left'].append(self.last_data_left)
-        self.position_data['right'].append(self.last_data_right)
+        if self.last_data_left is not None and self.last_data_right is not None:
+            self.position_data['left'].append(self.last_data_left)
+            self.position_data['right'].append(self.last_data_right)
+        else:
+            print 'NOT RECORDED, MISSING DATA...'
+
         print 'left: ', self.last_data_left
         print 'right:', self.last_data_right
         print '--'
 
+
     def record(self):
         self.initRos()
-        #self.timer.start()
-
         self.timer = rospy.Timer(rospy.Duration(1.0), self.grep_data)
         rospy.spin()
-        #self.timer.join(1)
 
         print 'ENDING'
-
-        print self.mode
 
     def save(self):
         try:
@@ -71,11 +61,15 @@ class GSRecorder(object):
 
 if __name__ == '__main__':
     gsr = GSRecorder()
+
     raw_input('press enter to record trajectory_goal_data')
     print 'now recording...'
+
     gsr.record()
     rospy.spin()
+
     print 'recording stopped'
     print 'save recorded data...'
+
     gsr.save()
 
