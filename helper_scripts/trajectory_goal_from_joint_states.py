@@ -8,6 +8,7 @@ import errno
 
 from geometry_msgs.msg import Twist
 from control_msgs.msg import JointTrajectoryControllerState
+from sensor_msgs.msg import JointState
 
 class GSRecorder(object):
     MODE_LEFT = 0b1
@@ -29,11 +30,23 @@ class GSRecorder(object):
     def initRos(self):
         rospy.init_node('goal_state_recorder')
 
-        if self.mode & GSRecorder.MODE_LEFT:
-            self.subl = rospy.Subscriber(GSRecorder.TOPIC_LEFT, JointTrajectoryControllerState, self.left_callback)
+        rospy.Subscriber('/joint_states', JointState, self.joint_callback)
+        JointState
 
-        if self.mode & GSRecorder.MODE_RIGHT:
-            self.subr = rospy.Subscriber(GSRecorder.TOPIC_RIGHT, JointTrajectoryControllerState, self.right_callback)
+        #if self.mode & GSRecorder.MODE_LEFT:
+        #    self.subl = rospy.Subscriber(GSRecorder.TOPIC_LEFT, JointTrajectoryControllerState, self.left_callback)
+
+        #if self.mode & GSRecorder.MODE_RIGHT:
+        #    self.subr = rospy.Subscriber(GSRecorder.TOPIC_RIGHT, JointTrajectoryControllerState, self.right_callback)
+
+
+    def joint_callback(self, data):
+
+        if 'arm_left_1_joint' in data.name:
+            self.last_data_left = data.positions
+
+        if 'arm_right_1_joint' in data.name:
+            self.last_data_right = data.positions
 
 
     def left_callback(self, data):
@@ -72,6 +85,7 @@ class GSRecorder(object):
 if __name__ == '__main__':
     gsr = GSRecorder()
     raw_input('press enter to record trajectory_goal_data')
+    print 'now recording...'
     gsr.record()
     rospy.spin()
     print 'recording stopped'
