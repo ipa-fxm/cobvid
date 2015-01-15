@@ -33,6 +33,9 @@ class TestStuff(BaseScene):
             self.appendSwitchVelToGoalTimeout()
             self.syncTimeline()
 
+    def play_recorded_trajectory_goal(self):
+        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal.yaml')
+        self.appendArms(jtp_list)
 
 
 class DemoScene(BaseScene):
@@ -96,5 +99,9 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/test1', test.move_goal, test)
     sh.add_service_callback('scenario/test2', test.move_vel, test)
     sh.add_service_callback('scenario/test3', test.move_combine_repeat, test)
+
+    sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
+
+
 
     sh.startup(masterTimeline)

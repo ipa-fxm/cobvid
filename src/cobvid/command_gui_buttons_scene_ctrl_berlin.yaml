@@ -19,4 +19,5 @@ group79:
     ['move goal', trigger, test1],
     ['move vel', trigger, test2],
     ['repeat combine', trigger, test3],
+    ['play goal', trigger, test4],
     ]

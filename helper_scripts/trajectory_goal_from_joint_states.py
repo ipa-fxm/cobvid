@@ -3,6 +3,8 @@
 
 import rospy
 import yaml
+import os
+import errno
 
 from geometry_msgs.msg import Twist
 from control_msgs.msg import JointTrajectoryControllerState
@@ -57,16 +59,22 @@ class GSRecorder(object):
         print self.mode
 
     def save(self):
-        with open('trajectory_goal.yaml', 'w') as f:
+        try:
+            os.makedirs('../trajectory_goal_data')
+        except OSError as ex:
+            if ex.errno != errno.EEXIST:
+                raise
+
+        with open('../trajectory_goal_data/trajectory_goal.yaml', 'w') as f:
             yaml.safe_dump(self.position_data, f)
 
 
 if __name__ == '__main__':
     gsr = GSRecorder()
+    raw_input('press enter to record trajectory_goal_data')
     gsr.record()
     rospy.spin()
-    print 'end'
-    print gsr.position_data
-    print 'save..'
+    print 'recording stopped'
+    print 'save recorded data...'
     gsr.save()
 

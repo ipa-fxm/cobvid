@@ -49,6 +49,7 @@ import sys
 import os
 import string
 import operator as op
+import yaml
 
 class DummyObject(object):
     def __init__(self, *args, **kwargs):
@@ -1086,6 +1087,21 @@ class JTP(object):
         args.extend(velocities)
 
         return JTP(jtp.time_from_start, *args)
+
+    @staticmethod
+    def load_trajectory_goal(filename):
+
+        with open(filename, 'r') as f:
+            trajectory_goal_data = yaml.safe_load(f)
+
+        jtp_list = [list(), list()]
+        for left_data in trajectory_goal_data['left']:
+            jtp_list[0].append(JTP(1, *left_data))
+
+        for right_data in trajectory_goal_data['right']:
+            jtp_list[1].append(JTP(1, *right_data))
+
+        return jtp_list
 
     @staticmethod
     def _updateTimes(jtp_list):
