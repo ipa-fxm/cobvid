@@ -7,10 +7,15 @@ import roslib
 try:
     isLive=True
     roslib.load_manifest('cobvid')
+    print 'cobvid found'
     from cob_srvs.srv import Trigger
-    from cob_mimic.srv import SetMimic, SetMimicRequest
-    from cob_mimic.msg import SetMimicAction, SetMimicGoal
+    print 'trigger srv found'
+    #from cob_mimic.srv import SetMimic, SetMimicRequest
+    #print 'mimic srv stuff found'
+    #from cob_mimic.msg import SetMimicAction, SetMimicGoal
+    #print 'mimic msg stuff found'
     from cob_light.srv import SetLightMode, SetLightModeRequest
+    print 'led stuff found'
 except:
     isLive=False
     print

@@ -3,6 +3,38 @@
 
 from core import *
 
+class TestStuff(BaseScene):
+
+    def __init__(self, profile):
+        super(TestStuff, self).__init__(profile)
+
+        self.pose_home = {'p1': 0, 'p2': 0,
+                          'p3': 0, 'p4': 0,
+                          'p5': 0, 'p6': 0}
+
+        self.pose_test = {'p1': np.radians(0), 'p2': np.radians(0),
+                          'p3': np.radians(45), 'p4': np.radians(0),
+                          'p5': np.radians(0), 'p6': np.radians(0)}
+
+    def move_goal(self):
+        self.appendArms(self.movePose(duration=2, pose=self.inject_zero_velocity(self.pose_test)))
+
+    def move_vel(self):
+        signal = self.lin(velocity=-0.3, duration=2)
+        self.appendVelArmLeft(j3=signal)
+        self.appendVelArmRight(j3=signal*-1)
+
+    def move_combine_repeat(self, ntimes=3):
+        for i in range(ntimes):
+            self.move_goal()
+            self.syncTimeline()
+            self.move_vel()
+            self.syncTimeline()
+            self.appendSwitchVelToGoalTimeout()
+            self.syncTimeline()
+
+
+
 class DemoScene(BaseScene):
     def __init__(self, profile):
         super(DemoScene, self).__init__(profile)
@@ -49,6 +81,8 @@ if __name__ == '__main__':
 
     demo = DemoScene(cob4_2_profile)
 
+    test = TestStuff(cob4_2_profile)
+
     demo.cheerTurn()
 
     masterTimeline = demo
@@ -58,4 +92,9 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/po2', demo.pose_cheer_arms_up, demo)
     sh.add_service_callback('scenario/po3', demo.pose_cheer_turn, demo)
     sh.add_service_callback('scenario/sc1', demo.cheerTurn, demo)
+
+    sh.add_service_callback('scenario/test1', test.move_goal, test)
+    sh.add_service_callback('scenario/test2', test.move_vel, test)
+    sh.add_service_callback('scenario/test3', test.move_combine_repeat, test)
+
     sh.startup(masterTimeline)

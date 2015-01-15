@@ -12,3 +12,11 @@ group78:
   buttons: [
     ['(1) CHEER_TURN', trigger, sc1],
     ]
+group79:
+  group_name: 'TEST'
+  component_name: cobvid
+  buttons: [
+    ['move goal', trigger, test1],
+    ['move vel', trigger, test2],
+    ['repeat combine', trigger, test3],
+    ]
