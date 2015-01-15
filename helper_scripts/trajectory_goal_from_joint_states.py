@@ -50,10 +50,10 @@ class GSRecorder(object):
 
 
     def left_callback(self, data):
-        self.last_data_left = data.actual.positions
+        self.last_data_left = data.actual.position
 
     def right_callback(self, data):
-        self.last_data_right = data.actual.positions
+        self.last_data_right = data.actual.position
 
     def grep_data(self, data):
         self.position_data['left'].append(self.last_data_left)
