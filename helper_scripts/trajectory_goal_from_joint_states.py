@@ -2,6 +2,7 @@
 #-*- coding: utf-8 -*-
 
 import rospy
+import yaml
 
 from geometry_msgs.msg import Twist
 from control_msgs.msg import JointTrajectoryControllerState
@@ -20,6 +21,9 @@ class GSRecorder(object):
         self.last_data_left = None
         self.last_data_right = None
 
+        self.position_data = {'left': list(), 'right': list()}
+
+
     def initRos(self):
         rospy.init_node('goal_state_recorder')
 
@@ -31,22 +35,20 @@ class GSRecorder(object):
 
 
     def left_callback(self, data):
-        self.last_data_left = data.actual
+        self.last_data_left = data.actual.positions
 
     def right_callback(self, data):
-        self.last_data_right = data.actual
+        self.last_data_right = data.actual.positions
 
     def grep_data(self, data):
-        print data
-        print self.last_data_left
-        print self.last_data_right
-
+        self.position_data['left'].append(self.last_data_left)
+        self.position_data['right'].append(self.last_data_right)
 
     def record(self):
         self.initRos()
         #self.timer.start()
 
-        self.timer = rospy.Timer(rospy.Time(1.0), self.grep_data)
+        self.timer = rospy.Timer(rospy.Duration(1.0), self.grep_data)
         rospy.spin()
         #self.timer.join(1)
 
@@ -54,6 +56,9 @@ class GSRecorder(object):
 
         print self.mode
 
+    def save(self):
+        with open('trajectory_goal.yaml', 'w') as f:
+            yaml.safe_dump(self.position_data, f)
 
 
 if __name__ == '__main__':
@@ -61,3 +66,7 @@ if __name__ == '__main__':
     gsr.record()
     rospy.spin()
     print 'end'
+    print gsr.position_data
+    print 'save..'
+    gsr.save()
+
