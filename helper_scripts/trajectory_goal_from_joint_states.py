@@ -42,6 +42,9 @@ class GSRecorder(object):
     def grep_data(self, data):
         self.position_data['left'].append(self.last_data_left)
         self.position_data['right'].append(self.last_data_right)
+        print 'left: ', self.last_data_left
+        print 'right:', self.last_data_right
+        print '--'
 
     def record(self):
         self.initRos()
