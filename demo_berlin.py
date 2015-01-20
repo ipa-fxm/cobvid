@@ -16,6 +16,12 @@ class TestStuff(BaseScene):
                           'p3': np.radians(45), 'p4': np.radians(0),
                           'p5': np.radians(0), 'p6': np.radians(0)}
 
+        self.hold_ball_start = {'p1': 0.48, 'p2': 0.92,
+                                'p3': 0.00, 'p4': 1.26,
+                                'p5': 0.00, 'p6': 0.80,
+                                'p7': 0.36}
+
+
     def move_goal(self):
         self.appendArms(self.movePose(duration=2, pose=self.inject_zero_velocity(self.pose_test)))
 
@@ -36,6 +42,9 @@ class TestStuff(BaseScene):
     def play_recorded_trajectory_goal(self):
         jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal.yaml')
         self.appendArms(jtp_list)
+
+    def move_hold_ball_start(self, duration=8):
+        self.appendArms(self.movePose(duration=duration, pose=self.inject_zero_velocity(self.hold_ball_start)))
 
 
 class DemoScene(BaseScene):
@@ -101,6 +110,8 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/test3', test.move_combine_repeat, test)
 
     sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
+
+    sh.add_service_callback('scenario/test5', test.move_hold_ball_start, test)
 
 
 
