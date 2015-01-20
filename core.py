@@ -300,7 +300,10 @@ class ROSBridge(object):
         def param_call(self, *args):
             print 'FAKE: %s:   %s' % (self.topic_name, args)
 
-    def __init__(self, fakerun=False, exec_base=False, exec_arm_left=False, exec_arm_right=False, exec_gripper_left=False, exec_gripper_right=False, exec_mimic=False, exec_led=False, timeout=5):
+    def __init__(self, fakerun=False, exec_base=False,
+                 exec_arm_left=False, exec_arm_right=False,
+                 exec_gripper_left=False, exec_gripper_right=False,
+                 exec_mimic=False, exec_led=False, exec_tf=False, timeout=5):
         self.exec_base = exec_base
         self.exec_arm_left = exec_arm_left
         self.exec_arm_right = exec_arm_right
@@ -308,6 +311,7 @@ class ROSBridge(object):
         self.exec_gripper_right = exec_gripper_right
         self.exec_mimic = exec_mimic
         self.exec_led = exec_led
+        self.exec_tf = exec_tf
 
         BASE_CONTROLLER_TOPIC = '/base_controller/command_direct'
 
@@ -507,8 +511,8 @@ class ROSBridge(object):
                                'child': timeline.profile.tf_link_right_name,
                                'parent': timeline.profile.tf_link_name}
 
-
-        self.prepare_tf(timeline=timeline)
+        if self.exec_tf:
+            self.prepare_tf(timeline=timeline)
 
         PrettyOutput.attation_msg('TIMELINE STARTING...')
 
@@ -550,7 +554,8 @@ class ROSBridge(object):
                 print timeline.LED[step]
                 self.led_torso_call(timeline.LED[step])
 
-            self.tf_call(timeline, step)
+            if self.exec_tf:
+                self.tf_call(timeline, step)
 
 
             rospy.sleep(timeline.profile.sample_time)
@@ -558,9 +563,8 @@ class ROSBridge(object):
         ROSBridge.ACTIVE_TASK = False
 
     def tf_call(self, timeline, step):
-        print timeline.TFX[step], timeline.TFY[step], timeline.TFZ[step],
-        print timeline.TFRoll[step], timeline.TFPich[step], timeline.TFYaw[step]
-
+        #print timeline.TFX[step], timeline.TFY[step], timeline.TFZ[step],
+        #print timeline.TFRoll[step], timeline.TFPich[step], timeline.TFYaw[step]
 
         self.tf_broadcaster.sendTransform((timeline.TFX[step], timeline.TFY[step], timeline.TFZ[step]),
                          tf.transformations.quaternion_from_euler(timeline.TFRoll[step], timeline.TFPich[step], timeline.TFYaw[step]),
@@ -823,7 +827,8 @@ class ServiceHandler(object):
                                exec_mimic=self.is_ros_mimic,
                                exec_led=self.is_ros_led,
                                exec_gripper_left=self.is_ros_gripper_left,
-                               exec_gripper_right=self.is_ros_gripper_right)
+                               exec_gripper_right=self.is_ros_gripper_right,
+                               exec_tf=self.is_ros_tf)
 
             bridge.exec_timeline(timeline)
 
