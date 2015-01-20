@@ -47,8 +47,12 @@ class Stuff(BaseScene):
         self.appendArms(self.movePose(duration=duration, pose=self.inject_zero_velocity(self.hold_ball_start)))
 
 
-    def tf_test(self, steptime=20, distance=0.2, rotation=np.pi/4):
+    def tf_test_z(self, steptime=20, distance=0.2, rotation=np.pi/4):
         self.appendTFZ(self.sin(0, np.pi*2, steptime)*distance)
+        self.syncTF()
+
+    def tf_test_roll(self, steptime=20, distance=0.2, rotation=np.pi/8):
+        self.appendTFRoll(self.sin(0, np.pi*2, steptime)*rotation)
         self.syncTF()
 
 
@@ -117,7 +121,7 @@ if __name__ == '__main__':
 
     test = Stuff(cob4_2_profile)
 
-    test.tf_test()
+    test.tf_test_z()
 
     masterTimeline = test
 
@@ -133,8 +137,9 @@ if __name__ == '__main__':
 
     sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
 
-    #sh.add_service_callback('scenario/test5', test.move_hold_ball_start, test)
-    sh.add_service_callback('scenario/test5', test.tf_test, test)
+    sh.add_service_callback('scenario/test5', test.move_hold_ball_start, test)
+    sh.add_service_callback('scenario/test6', test.tf_test_z, test)
+    sh.add_service_callback('scenario/test7', test.tf_test_roll, test)
 
 
 
