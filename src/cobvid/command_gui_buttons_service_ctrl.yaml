@@ -1,0 +1,70 @@
+#group:
+#  group_name: <group_name>
+#  component_name: <component_name>
+#  buttons: [[button_name1,function_name1,parameter_name2,
+#    [button_name2,function_name2,parameter_name2]]
+
+#group1:
+#  group_name: base
+#  component_name: base
+#  buttons: [[stop,stop,omni],
+#    [init,trigger,init],
+#    [recover,trigger,recover]]
+group4:
+  group_name: sensorring
+  component_name: sensorring
+  buttons: [[stop,stop],
+    [init,init],
+    [recover,recover],
+    [front,move,front],
+    [back,move,back],
+    [left,move,left],
+    [right,move,right]]
+group5:
+  group_name: arm_left
+  component_name: arm_left
+  buttons: [[stop,stop],
+    [init,init],
+    [recover,recover],
+    [home,move,home],
+    [folded,move,folded],
+    [side,move,side]]
+group6:
+  group_name: arm_right
+  component_name: arm_right
+  buttons: [[stop,stop],
+    [init,init],
+    [recover,recover],
+    [home,move,home],
+    [folded,move,folded],
+    [side,move,side]]
+group92:
+  group_name: 'ENABLE CTRL'
+  component_name: cobvid
+  buttons: [
+    ['restart', trigger, restart],
+    ['FAKERUN', trigger, enable_fakerun],
+    ['BASE', trigger, enable_base],
+    ['ARM LEFT', trigger, enable_arm_left],
+    ['ARM RIGHT', trigger, enable_arm_right],
+    ['GRIPPER LEFT', trigger, enable_gripper_left],
+    ['GRIPPER RIGHT', trigger, enable_gripper_right],
+    ['MIMIC', trigger, enable_mimic],
+    ['LED', trigger, enable_led],
+    ['TF', trigger, enable_tf],
+    ]
+group93:
+  group_name: 'DISABLE CTRL'
+  component_name: cobvid
+  buttons: [
+    ['status', trigger, status],
+    ['FAKERUN', trigger, disable_fakerun],
+    ['BASE', trigger, disable_base],
+    ['ARM LEFT', trigger, disable_arm_left],
+    ['ARM RIGHT', trigger, disable_arm_right],
+    ['GRIPPER LEFT', trigger, disable_gripper_left],
+    ['GRIPPER RIGHT', trigger, disable_gripper_right],
+    ['MIMIC', trigger, disable_mimic],
+    ['LED', trigger, disable_led],
+    ['TF', trigger, disable_tf],
+    ]
