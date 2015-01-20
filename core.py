@@ -27,6 +27,7 @@ except:
 import rospy
 import rosnode
 import actionlib
+import tf
 
 # ROS MSGS
 
@@ -460,6 +461,17 @@ class ROSBridge(object):
                 if is_data_loss and PrettyOutput.attation_msg(info_msg, question_msq):
                     self._exit_task()
 
+    def prepare_tf(self, timeline):
+
+        timeline.TFX += timeline.profile.tf_link_ofs[0]
+        timeline.TFY += timeline.profile.tf_link_ofs[1]
+        timeline.TFZ += timeline.profile.tf_link_ofs[2]
+        timeline.TFRoll += timeline.profile.tf_link_ofs[3]
+        timeline.TFPich += timeline.profile.tf_link_ofs[4]
+        timeline.TFYaw += timeline.profile.tf_link_ofs[5]
+
+
+
     @staticmethod
     def _exit_task():
         PrettyOutput.attation_msg('EXITING TASK')
@@ -482,6 +494,21 @@ class ROSBridge(object):
         self.block_velocity_timeline_for_goals(timeline=timeline,
                                                goal_timeline=timeline.ARMR_GOAL,
                                                velocity_timeline=timeline.ARMR_VEL)
+
+
+        self.tf_broadcaster = tf.TransformBroadcaster()
+        self.tf_left_param = {'translation': timeline.profile.tf_link_left_ofs[:3],
+                              'rotation': tf.transformations.quaternion_from_euler(*timeline.profile.tf_link_left_ofs[3:]),
+                              'child': timeline.profile.tf_link_left_name,
+                              'parent': timeline.profile.tf_link_name}
+
+        self.tf_right_param = {'translation': timeline.profile.tf_link_right_ofs[:3],
+                               'rotation': tf.transformations.quaternion_from_euler(*timeline.profile.tf_link_right_ofs[3:]),
+                               'child': timeline.profile.tf_link_right_name,
+                               'parent': timeline.profile.tf_link_name}
+
+
+        self.prepare_tf(timeline=timeline)
 
         PrettyOutput.attation_msg('TIMELINE STARTING...')
 
@@ -523,9 +550,25 @@ class ROSBridge(object):
                 print timeline.LED[step]
                 self.led_torso_call(timeline.LED[step])
 
+            self.tf_call(timeline, step)
+
+
             rospy.sleep(timeline.profile.sample_time)
 
         ROSBridge.ACTIVE_TASK = False
+
+    def tf_call(self, timeline, step):
+        print timeline.TFX[step], timeline.TFY[step], timeline.TFZ[step],
+        print timeline.TFRoll[step], timeline.TFPich[step], timeline.TFYaw[step]
+
+
+        self.tf_broadcaster.sendTransform((timeline.TFX[step], timeline.TFY[step], timeline.TFZ[step]),
+                         tf.transformations.quaternion_from_euler(timeline.TFRoll[step], timeline.TFPich[step], timeline.TFYaw[step]),
+                         rospy.Time.now(), timeline.profile.tf_link_name, timeline.profile.tf_source_name)
+
+        self.tf_broadcaster.sendTransform(time=rospy.Time.now(), **self.tf_left_param)
+        self.tf_broadcaster.sendTransform(time=rospy.Time.now(), **self.tf_right_param)
+
 
 class ServiceHandler(object):
     def __init__(self):
@@ -545,6 +588,8 @@ class ServiceHandler(object):
         self.is_ros_base = False
         self.is_ros_mimic = False
         self.is_ros_led = False
+
+        self.is_ros_tf = True
 
         self.is_lab = False
 
@@ -626,6 +671,8 @@ class ServiceHandler(object):
         print '    MIMIC:        ', self.is_ros_mimic
         print '    LED:          ', self.is_ros_led
         print
+        print '    TF :          ', self.is_ros_tf
+        print
 
     def callback_creator(self, service_name, func_list, bound_timeline_object):
         def callback_function(_):
@@ -685,7 +732,7 @@ class ServiceHandler(object):
         self.init_startup_args()
 
         if not (self.is_ros_base or self.is_ros_arm_left or self.is_ros_arm_right or self.is_ros_mimic
-                or self.is_ros_led or self.is_ros_gripper_left or self.is_ros_gripper_right):
+                or self.is_ros_led or self.is_ros_gripper_left or self.is_ros_gripper_right or self.is_ros_tf):
             idx = sys.argv.index('-ros')
             sys.argv.pop(idx)
 
@@ -792,6 +839,14 @@ class Profile(object):
         self.max_angular_acceleration = max_angular_acceleration
         self.switch_vel_to_goal_timeout = switch_vel_to_goal_timeout
 
+        self.tf_source_name = 'base_link'
+        self.tf_link_name = 'ball_link'
+        self.tf_link_ofs = [0.6, 0, 0.7, 0, 0, 0]
+        self.tf_link_left_name = self.tf_link_name + '_left'
+        self.tf_link_left_ofs = [0, 0.25, 0, np.pi/2, 0, 0]
+        self.tf_link_right_name = self.tf_link_name + '_right'
+        self.tf_link_right_ofs = [0, -0.25, 0, -np.pi/2, np.pi, 0]
+
 
 class Timeline(object):
     def __init__(self, profile):
@@ -808,7 +863,12 @@ class Timeline(object):
         self.MIMIC = None
         self.LED = None
         self.SECTIONS = None
-
+        self.TFX = None
+        self.TFY = None
+        self.TFZ = None
+        self.TFRoll = None
+        self.TFPich = None
+        self.TFYaw = None
 
         self.clear_data()
 
@@ -826,6 +886,12 @@ class Timeline(object):
         self.LED = list()
         self.SECTIONS = list()
 
+        self.TFX = np.array([], np.float64)
+        self.TFY = np.array([], np.float64)
+        self.TFZ = np.array([], np.float64)
+        self.TFRoll = np.array([], np.float64)
+        self.TFPich = np.array([], np.float64)
+        self.TFYaw = np.array([], np.float64)
 
     def appendX(self, data):
         self.TLX = np.append(self.TLX, data)
@@ -913,6 +979,37 @@ class Timeline(object):
         lmr.mode.frequency = frequency
         self.LED.append(lmr)
 
+    def appendTFX(self, data):
+        self.TFX = np.append(self.TFX, data)
+
+    def appendTFY(self, data):
+        self.TFY = np.append(self.TFY, data)
+
+    def appendTFZ(self, data):
+        self.TFZ = np.append(self.TFZ, data)
+
+    def appendTFRoll(self, data):
+        self.TFRoll = np.append(self.TFRoll, data)
+
+    def appendTFPich(self, data):
+        self.TFPich = np.append(self.TFPich, data)
+
+    def appendTFYaw(self, data):
+        self.TFYaw = np.append(self.TFYaw, data)
+
+    def syncTF(self, onlyTF=False, syncToMax=True):
+        tf_list = [self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPich, self.TFYaw]
+        operation = max if syncToMax else min
+        tf_lens = map(len, tf_list)
+        target_size = operation(tf_lens) if onlyTF else self.get_max_length_from_timelines()
+        size_remaining_list = [target_size - tf_len for tf_len in tf_lens]
+        last_value_list = [tf[-1] if len(tf) else 0 for tf in tf_list]
+        synced = [np.append(tf, np.array([last_value]*remaining, np.float64))
+                  for tf, last_value, remaining in zip(tf_list, last_value_list, size_remaining_list)]
+        self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPich, self.TFYaw = synced
+
+
+
     def _createVelArmData(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
         joints = [j1, j2, j3, j4, j5, j6, j7]
         filled_joints = [jn for jn in joints if jn is not None]
@@ -937,6 +1034,7 @@ class Timeline(object):
         self.syncTimelineMimic()
         self.syncTimelineLed()
         self.syncTimelineGripper()
+        self.syncTF()
 
     def syncTimelineBase(self):
         self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float64], 0, self.TLX, self.TLY, self.TLTH)
@@ -955,6 +1053,9 @@ class Timeline(object):
 
     def syncTimelineLed(self):
         self.LED = self._evenMaxSamples(self._generatePythonList, [None], 0, self.LED)
+
+
+
 
     def _generatePythonList(self, max_samples, *args):
         return list(args)*max_samples
@@ -976,6 +1077,7 @@ class Timeline(object):
 
     def get_max_length_from_timelines(self):
         timelines = [self.TLX, self.TLY, self.TLTH, self.ARML_GOAL, self.ARMR_GOAL, self.ARML_VEL, self.ARMR_VEL]
+        timelines.extend([self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPich, self.TFYaw])
         return max(map(len, timelines))
 
     def __len__(self):

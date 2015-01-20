@@ -8,6 +8,7 @@ import errno
 
 from sensor_msgs.msg import JointState
 
+
 class GSRecorder(object):
 
     def __init__(self):

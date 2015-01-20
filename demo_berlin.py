@@ -3,10 +3,10 @@
 
 from core import *
 
-class TestStuff(BaseScene):
+class Stuff(BaseScene):
 
     def __init__(self, profile):
-        super(TestStuff, self).__init__(profile)
+        super(Stuff, self).__init__(profile)
 
         self.pose_home = {'p1': 0, 'p2': 0,
                           'p3': 0, 'p4': 0,
@@ -45,6 +45,28 @@ class TestStuff(BaseScene):
 
     def move_hold_ball_start(self, duration=8):
         self.appendArms(self.movePose(duration=duration, pose=self.inject_zero_velocity(self.hold_ball_start)))
+
+
+    def tf_test(self, steptime=20, distance=0.2, rotation=np.pi/4):
+        self.appendTFZ(self.sin(0, np.pi*2, steptime)*distance)
+        self.syncTF()
+
+
+    def tf_rviz_test(self, steptime=3, distance=0.2, rotation=np.pi/4):
+        self.appendTFX(self.sin(0, np.pi*2, steptime)*distance)
+        self.syncTF()
+        self.appendTFY(self.sin(0, np.pi*2, steptime)*distance)
+        self.syncTF()
+        self.appendTFZ(self.sin(0, np.pi*2, steptime)*distance)
+        self.syncTF()
+        self.appendTFRoll(self.sin(0, np.pi*2, steptime)*rotation)
+        self.syncTF()
+        self.appendTFPich(self.sin(0, np.pi*2, steptime)*rotation)
+        self.syncTF()
+        self.appendTFYaw(self.sin(0, np.pi*2, steptime)*rotation)
+        self.syncTF()
+
+
 
 
 class DemoScene(BaseScene):
@@ -93,11 +115,11 @@ if __name__ == '__main__':
 
     demo = DemoScene(cob4_2_profile)
 
-    test = TestStuff(cob4_2_profile)
+    test = Stuff(cob4_2_profile)
 
-    demo.cheerTurn()
+    test.tf_test()
 
-    masterTimeline = demo
+    masterTimeline = test
 
     sh = ServiceHandler()
     sh.add_service_callback('scenario/po1', demo.pose_boring_walk_front_back_c1, demo)
@@ -111,7 +133,8 @@ if __name__ == '__main__':
 
     sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
 
-    sh.add_service_callback('scenario/test5', test.move_hold_ball_start, test)
+    #sh.add_service_callback('scenario/test5', test.move_hold_ball_start, test)
+    sh.add_service_callback('scenario/test5', test.tf_test, test)
 
 
 
