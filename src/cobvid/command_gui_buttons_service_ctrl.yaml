@@ -51,6 +51,7 @@ group92:
     ['GRIPPER RIGHT', trigger, enable_gripper_right],
     ['MIMIC', trigger, enable_mimic],
     ['LED', trigger, enable_led],
+    ['TF', trigger, enable_tf],
     ]
 group93:
   group_name: 'DISABLE CTRL'
@@ -65,4 +66,5 @@ group93:
     ['GRIPPER RIGHT', trigger, disable_gripper_right],
     ['MIMIC', trigger, disable_mimic],
     ['LED', trigger, disable_led],
+    ['TF', trigger, disable_tf],
     ]

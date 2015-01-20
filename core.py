@@ -589,7 +589,7 @@ class ServiceHandler(object):
         self.is_ros_mimic = False
         self.is_ros_led = False
 
-        self.is_ros_tf = True
+        self.is_ros_tf = False
 
         self.is_lab = False
 
@@ -629,6 +629,9 @@ class ServiceHandler(object):
         rospy.Service('/scenario/enable_led', Trigger, self._enable_led)
         rospy.Service('/scenario/disable_led', Trigger, self._disable_led)
 
+        rospy.Service('/scenario/enable_tf', Trigger, self._enable_tf)
+        rospy.Service('/scenario/disable_tf', Trigger, self._disable_tf)
+
     def init_startup_args(self):
         self.is_fakerun = '-fakerun' in sys.argv
         self.is_service_mode = '-servicemode' in sys.argv
@@ -643,7 +646,7 @@ class ServiceHandler(object):
 
         self.is_ros = '-ros' in sys.argv
         if self.is_ros:
-            n_ros_params = 7
+            n_ros_params = 8
             idx = sys.argv.index('-ros') + 1
             self.is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+n_ros_params]
@@ -652,6 +655,7 @@ class ServiceHandler(object):
             self.is_ros_base = 'base' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_mimic = 'mimic' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_led = 'led' in sys.argv[idx:idx+n_ros_params]
+            self.is_ros_tf = 'tf' in sys.argv[idx:idx+n_ros_params]
 
 
     def print_startup_args(self, *_):
@@ -796,6 +800,12 @@ class ServiceHandler(object):
 
     def _disable_led(self, *args):
         self._disable_argv('led', self.is_ros_led)
+
+    def _enable_tf(self, *args):
+        self._enable_argv('tf', self.is_ros_tf)
+
+    def _disable_tf(self, *args):
+        self._disable_argv('tf', self.is_ros_tf)
 
     def execute_timeline(self, timeline, is_callback=False):
         if not is_callback and self.is_service_mode:
