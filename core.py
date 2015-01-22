@@ -41,6 +41,7 @@ from control_msgs.msg import FollowJointTrajectoryAction
 from control_msgs.msg import FollowJointTrajectoryGoal
 from trajectory_msgs.msg import JointTrajectoryPoint
 from std_msgs.msg import Float64MultiArray
+from std_srvs.srv import Empty
 from actionlib_msgs.msg import GoalStatus
 
 # IMPORT FOR CALCULATIONS
@@ -335,6 +336,14 @@ class ROSBridge(object):
         MIMIC_ACTION_TOPIC = '/set_mimic_action'
 
 
+
+        START_TRACKING_LEFT_SRV = '/arm_left/start_tracking'
+        STOP_TRACKING_LEFT_SRV = '/arm_left/stop_tracking'
+
+        START_TRACKING_RIGHT_SRV = '/arm_right/start_tracking'
+        STOP_TRACKING_RIGHT_SRV = '/arm_right/stop_tracking'
+
+
         queue_size = 0
 
         # BASE
@@ -348,6 +357,21 @@ class ROSBridge(object):
         # RIGHT ARM VELOCITY
         self.arm_right_velocity_publisher = rospy.Publisher(ARM_RIGHT_VELOCITY_TOPIC, Float64MultiArray, queue_size=queue_size) \
             if not fakerun and isLive and exec_arm_right else ROSBridge.Dummy('ARM_RIGHT')
+
+        # TF - TRACKING
+        if not fakerun and isLive and exec_tf:
+            try:
+                rospy.wait_for_service(START_TRACKING_LEFT_SRV, 2)
+                rospy.wait_for_service(STOP_TRACKING_LEFT_SRV, 2)
+                rospy.wait_for_service(START_TRACKING_RIGHT_SRV, 2)
+                rospy.wait_for_service(STOP_TRACKING_RIGHT_SRV, 2)
+
+                self.start_tracking_left_srv = rospy.ServiceProxy(START_TRACKING_LEFT_SRV, SetString)
+                self.stop_tracking_left_srv = rospy.ServiceProxy(STOP_TRACKING_LEFT_SRV, Empty)
+                self.start_tracking_left_srv = rospy.ServiceProxy(START_TRACKING_RIGHT_SRV, SetString)
+                self.stop_tracking_left_srv = rospy.ServiceProxy(STOP_TRACKING_RIGHT_SRV, Empty)
+            except:
+                PrettyOutput.init_exit_msg('TRACKING')
 
         # MIMIC
         if not fakerun and isLive and exec_mimic:

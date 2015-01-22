@@ -58,20 +58,16 @@ class Stuff(BaseScene):
         self.appendTFRoll(self.sin(0, np.pi*2, steptime)*rotation)
         self.syncAllTF()
 
-    def add_two_ints_client(x, y):
-        rospy.wait_for_service('add_two_ints')
-        try:
-            add_two_ints = rospy.ServiceProxy('add_two_ints', AddTwoInts)
-            resp1 = add_two_ints(x, y)
-            return resp1.sum
-        except rospy.ServiceException, e:
-            print "Service call failed: %s"%e
+
 
     def fake(self, duration=10, steptime=10, distance=0.1, rotation=np.pi/8):
 
-        rospy.wait_for_service('arm_left/start_tracking')
 
+        print 'ok'
         return
+
+
+
         tfh = TransformHelper()
         tfh.add_unknown(self.profile.tf_link_name, self.profile.tf_source_name, self.profile.tf_link_ofs)
         arm_left_pose = tfh.getTransformation(self.profile.tf_link_name, 'arm_left_7_link')
