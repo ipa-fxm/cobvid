@@ -10,10 +10,15 @@ try:
     print 'cobvid found'
     from cob_srvs.srv import Trigger
     print 'trigger srv found'
+
     #from cob_mimic.srv import SetMimic, SetMimicRequest
     #print 'mimic srv stuff found'
     #from cob_mimic.msg import SetMimicAction, SetMimicGoal
     #print 'mimic msg stuff found'
+
+    from cob_srvs.srv import SetString
+
+
     from cob_light.srv import SetLightMode, SetLightModeRequest
     print 'led stuff found'
 except:
@@ -471,7 +476,7 @@ class ROSBridge(object):
         timeline.TFY += timeline.profile.tf_link_ofs[1]
         timeline.TFZ += timeline.profile.tf_link_ofs[2]
         timeline.TFRoll += timeline.profile.tf_link_ofs[3]
-        timeline.TFPich += timeline.profile.tf_link_ofs[4]
+        timeline.TFPitch += timeline.profile.tf_link_ofs[4]
         timeline.TFYaw += timeline.profile.tf_link_ofs[5]
 
 
@@ -563,15 +568,22 @@ class ROSBridge(object):
         ROSBridge.ACTIVE_TASK = False
 
     def tf_call(self, timeline, step):
-        #print timeline.TFX[step], timeline.TFY[step], timeline.TFZ[step],
-        #print timeline.TFRoll[step], timeline.TFPich[step], timeline.TFYaw[step]
 
+        rostime = rospy.Time.now()
         self.tf_broadcaster.sendTransform((timeline.TFX[step], timeline.TFY[step], timeline.TFZ[step]),
-                         tf.transformations.quaternion_from_euler(timeline.TFRoll[step], timeline.TFPich[step], timeline.TFYaw[step]),
-                         rospy.Time.now(), timeline.profile.tf_link_name, timeline.profile.tf_source_name)
+                         tf.transformations.quaternion_from_euler(timeline.TFRoll[step], timeline.TFPitch[step], timeline.TFYaw[step]),
+                         rostime, timeline.profile.tf_link_name, timeline.profile.tf_source_name)
 
-        self.tf_broadcaster.sendTransform(time=rospy.Time.now(), **self.tf_left_param)
-        self.tf_broadcaster.sendTransform(time=rospy.Time.now(), **self.tf_right_param)
+
+
+        self.tf_broadcaster.sendTransform((timeline.TFLX[step], timeline.TFLY[step], timeline.TFLZ[step]),
+                         tf.transformations.quaternion_from_euler(timeline.TFLRoll[step], timeline.TFLPitch[step], timeline.TFLYaw[step]),
+                         rostime, timeline.profile.tf_link_left_name, timeline.profile.tf_link_name)
+
+        self.tf_broadcaster.sendTransform((timeline.TFRX[step], timeline.TFRY[step], timeline.TFRZ[step]),
+                         tf.transformations.quaternion_from_euler(timeline.TFRRoll[step], timeline.TFRPitch[step], timeline.TFRYaw[step]),
+                         rostime, timeline.profile.tf_link_right_name, timeline.profile.tf_link_name)
+
 
 
 class ServiceHandler(object):
@@ -856,11 +868,11 @@ class Profile(object):
 
         self.tf_source_name = 'base_link'
         self.tf_link_name = 'ball_link'
-        self.tf_link_ofs = [0.6, 0, 0.7, 0, 0, 0]
+        self.tf_link_ofs = [0.6, 0, 0.9, 0, 0, 0]
         self.tf_link_left_name = self.tf_link_name + '_left'
-        self.tf_link_left_ofs = [0, 0.25, 0, np.pi/2, 0, 0]
+        self.tf_link_left_ofs = [0, 0.26, 0, np.pi/2, np.pi/2, np.pi/8]
         self.tf_link_right_name = self.tf_link_name + '_right'
-        self.tf_link_right_ofs = [0, -0.25, 0, -np.pi/2, np.pi, 0]
+        self.tf_link_right_ofs = [0, -0.26, 0, np.pi/2, -np.pi/2, np.pi*7/8]
 
 
 class Timeline(object):
@@ -882,8 +894,20 @@ class Timeline(object):
         self.TFY = None
         self.TFZ = None
         self.TFRoll = None
-        self.TFPich = None
+        self.TFPitch = None
         self.TFYaw = None
+        self.TFLX = None
+        self.TFLY = None
+        self.TFLZ = None
+        self.TFLRoll = None
+        self.TFLPitch = None
+        self.TFLYaw = None
+        self.TFRX = None
+        self.TFRY = None
+        self.TFRZ = None
+        self.TFRRoll = None
+        self.TFRPitch = None
+        self.TFRYaw = None
 
         self.clear_data()
 
@@ -891,12 +915,16 @@ class Timeline(object):
         self.TLX = np.array([], np.float64)
         self.TLY = np.array([], np.float64)
         self.TLTH = np.array([], np.float64)
+
         self.ARML_GOAL = list()
         self.ARMR_GOAL = list()
+
         self.GRIPPERL_GOAL = list()
         self.GRIPPERR_GOAL = list()
+
         self.ARML_VEL = np.ndarray((0, 8), np.float64)
         self.ARMR_VEL = np.ndarray((0, 8), np.float64)
+
         self.MIMIC = list()
         self.LED = list()
         self.SECTIONS = list()
@@ -905,8 +933,22 @@ class Timeline(object):
         self.TFY = np.array([], np.float64)
         self.TFZ = np.array([], np.float64)
         self.TFRoll = np.array([], np.float64)
-        self.TFPich = np.array([], np.float64)
+        self.TFPitch = np.array([], np.float64)
         self.TFYaw = np.array([], np.float64)
+
+        self.TFLX = np.array([], np.float64)
+        self.TFLY = np.array([], np.float64)
+        self.TFLZ = np.array([], np.float64)
+        self.TFLRoll = np.array([], np.float64)
+        self.TFLPitch = np.array([], np.float64)
+        self.TFLYaw = np.array([], np.float64)
+
+        self.TFRX = np.array([], np.float64)
+        self.TFRY = np.array([], np.float64)
+        self.TFRZ = np.array([], np.float64)
+        self.TFRRoll = np.array([], np.float64)
+        self.TFRPitch = np.array([], np.float64)
+        self.TFRYaw = np.array([], np.float64)
 
     def appendX(self, data):
         self.TLX = np.append(self.TLX, data)
@@ -1006,14 +1048,49 @@ class Timeline(object):
     def appendTFRoll(self, data):
         self.TFRoll = np.append(self.TFRoll, data)
 
-    def appendTFPich(self, data):
-        self.TFPich = np.append(self.TFPich, data)
+    def appendTFPitch(self, data):
+        self.TFPitch = np.append(self.TFPitch, data)
 
     def appendTFYaw(self, data):
         self.TFYaw = np.append(self.TFYaw, data)
 
-    def syncTF(self, onlyTF=False, syncToMax=True):
-        tf_list = [self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPich, self.TFYaw]
+    def appendTFLX(self, data):
+        self.TFLX = np.append(self.TFLX, data)
+
+    def appendTFLY(self, data):
+        self.TFLY = np.append(self.TFLY, data)
+
+    def appendTFLZ(self, data):
+        self.TFLZ = np.append(self.TFLZ, data)
+
+    def appendTFLRoll(self, data):
+        self.TFLRoll = np.append(self.TFLRoll, data)
+
+    def appendTFLPitch(self, data):
+        self.TFLPitch = np.append(self.TFLPitch, data)
+
+    def appendTFLYaw(self, data):
+        self.TFLYaw = np.append(self.TFLYaw, data)
+
+    def appendTFRX(self, data):
+        self.TFRX = np.append(self.TFRX, data)
+
+    def appendTFRY(self, data):
+        self.TFRY = np.append(self.TFRY, data)
+
+    def appendTFRZ(self, data):
+        self.TFRZ = np.append(self.TFRZ, data)
+
+    def appendTFRRoll(self, data):
+        self.TFRRoll = np.append(self.TFRRoll, data)
+
+    def appendTFRPitch(self, data):
+        self.TFRPitch = np.append(self.TFRPitch, data)
+
+    def appendTFRYaw(self, data):
+        self.TFRYaw = np.append(self.TFRYaw, data)
+
+    def _gen_sync_tf(self, tf_list, onlyTF=False, syncToMax=True):
         operation = max if syncToMax else min
         tf_lens = map(len, tf_list)
         target_size = operation(tf_lens) if onlyTF else self.get_max_length_from_timelines()
@@ -1021,8 +1098,27 @@ class Timeline(object):
         last_value_list = [tf[-1] if len(tf) else 0 for tf in tf_list]
         synced = [np.append(tf, np.array([last_value]*remaining, np.float64))
                   for tf, last_value, remaining in zip(tf_list, last_value_list, size_remaining_list)]
-        self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPich, self.TFYaw = synced
+        return synced
 
+    def syncTF(self, onlyTF=False, syncToMax=True):
+        tf_list = [self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPitch, self.TFYaw]
+        synced = self._gen_sync_tf(tf_list, onlyTF, syncToMax)
+        self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPitch, self.TFYaw = synced
+
+    def syncTFL(self, onlyTF=False, syncToMax=True):
+        tf_list = [self.TFLX, self.TFLY, self.TFLZ, self.TFLRoll, self.TFLPitch, self.TFLYaw]
+        synced = self._gen_sync_tf(tf_list, onlyTF, syncToMax)
+        self.TFLX, self.TFLY, self.TFLZ, self.TFLRoll, self.TFLPitch, self.TFLYaw = synced
+
+    def syncTFR(self, onlyTF=False, syncToMax=True):
+        tf_list = [self.TFRX, self.TFRY, self.TFRZ, self.TFRRoll, self.TFRPitch, self.TFRYaw]
+        synced = self._gen_sync_tf(tf_list, onlyTF, syncToMax)
+        self.TFRX, self.TFRY, self.TFRZ, self.TFRRoll, self.TFRPitch, self.TFRYaw = synced
+
+    def syncAllTF(self, onlyTF=False, syncToMax=True):
+        self.syncTF(onlyTF=onlyTF, syncToMax=syncToMax)
+        self.syncTFR(onlyTF=onlyTF, syncToMax=syncToMax)
+        self.syncTFL(onlyTF=onlyTF, syncToMax=syncToMax)
 
 
     def _createVelArmData(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
@@ -1049,7 +1145,7 @@ class Timeline(object):
         self.syncTimelineMimic()
         self.syncTimelineLed()
         self.syncTimelineGripper()
-        self.syncTF()
+        self.syncAllTF()
 
     def syncTimelineBase(self):
         self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float64], 0, self.TLX, self.TLY, self.TLTH)
@@ -1092,7 +1188,9 @@ class Timeline(object):
 
     def get_max_length_from_timelines(self):
         timelines = [self.TLX, self.TLY, self.TLTH, self.ARML_GOAL, self.ARMR_GOAL, self.ARML_VEL, self.ARMR_VEL]
-        timelines.extend([self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPich, self.TFYaw])
+        timelines.extend([self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPitch, self.TFYaw])
+        timelines.extend([self.TFLX, self.TFLY, self.TFLZ, self.TFLRoll, self.TFLPitch, self.TFLYaw])
+        timelines.extend([self.TFRX, self.TFRY, self.TFRZ, self.TFRRoll, self.TFRPitch, self.TFRYaw])
         return max(map(len, timelines))
 
     def __len__(self):
@@ -1158,6 +1256,42 @@ class Bezier(object):
         theta_velocity = rel_phi / self.profile.sample_time
 
         return velocity, theta_velocity*-1
+
+
+class TransformHelper(object):
+
+    def __init__(self):
+        self.tfl = tf.TransformListener()
+        self.tfb = tf.TransformBroadcaster()
+        self.unknown_frames = list()
+
+    def add_unknown(self, link_name, parent_link_name, rel_ofs):
+        self.unknown_frames.append([link_name, parent_link_name, rel_ofs])
+
+    def getTransformation(self, src_link_name, dst_link_name):
+        while not rospy.is_shutdown():
+            try:
+                for frame in self.unknown_frames:
+                    self._pubFrame(*frame)
+
+                raw = self.tfl.lookupTransform(src_link_name, dst_link_name, rospy.Time(0))
+
+                trans, quant = raw
+
+                return_data = list()
+                return_data.extend(trans)
+                return_data.extend(tf.transformations.euler_from_quaternion(quant))
+
+                return return_data
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+                continue
+
+    def _pubFrame(self, link_name, parent_link_name, rel_ofs):
+
+        self.tfb.sendTransform(rel_ofs[:3], tf.transformations.quaternion_from_euler(*rel_ofs[3:]),
+                          rospy.Time.now(), link_name, parent_link_name)
+
+
 
 
 

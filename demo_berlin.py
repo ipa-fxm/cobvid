@@ -19,7 +19,7 @@ class Stuff(BaseScene):
         self.hold_ball_start = {'p1': 0.48, 'p2': 0.92,
                                 'p3': 0.00, 'p4': 1.26,
                                 'p5': 0.00, 'p6': 0.80,
-                                'p7': 0.36}
+                                'p7': 0.36-1}
 
 
     def move_goal(self):
@@ -46,15 +46,101 @@ class Stuff(BaseScene):
     def move_hold_ball_start(self, duration=8):
         self.appendArms(self.movePose(duration=duration, pose=self.inject_zero_velocity(self.hold_ball_start)))
 
+    def tf_test_startpos(self, duration=20):
+        self.appendTFZ(self.lin(0, duration))
+        self.syncAllTF()
 
     def tf_test_z(self, steptime=20, distance=0.2, rotation=np.pi/4):
         self.appendTFZ(self.sin(0, np.pi*2, steptime)*distance)
-        self.syncTF()
+        self.syncAllTF()
 
     def tf_test_roll(self, steptime=20, distance=0.2, rotation=np.pi/8):
         self.appendTFRoll(self.sin(0, np.pi*2, steptime)*rotation)
-        self.syncTF()
+        self.syncAllTF()
 
+    def add_two_ints_client(x, y):
+        rospy.wait_for_service('add_two_ints')
+        try:
+            add_two_ints = rospy.ServiceProxy('add_two_ints', AddTwoInts)
+            resp1 = add_two_ints(x, y)
+            return resp1.sum
+        except rospy.ServiceException, e:
+            print "Service call failed: %s"%e
+
+    def fake(self, duration=10, steptime=10, distance=0.1, rotation=np.pi/8):
+
+        rospy.wait_for_service('arm_left/start_tracking')
+
+        return
+        tfh = TransformHelper()
+        tfh.add_unknown(self.profile.tf_link_name, self.profile.tf_source_name, self.profile.tf_link_ofs)
+        arm_left_pose = tfh.getTransformation(self.profile.tf_link_name, 'arm_left_7_link')
+        arm_right_pose = tfh.getTransformation(self.profile.tf_link_name, 'arm_right_7_link')
+
+
+        appendAllTFLFncList = [self.appendTFLX, self.appendTFLY, self.appendTFLZ, self.appendTFLRoll, self.appendTFLPitch, self.appendTFLYaw]
+
+        self.appendTFLX(self.lin(arm_left_pose[0], duration))
+        self.appendTFLY(self.lin(arm_left_pose[1], duration))
+        self.appendTFLZ(self.lin(arm_left_pose[2], duration))
+        self.appendTFLRoll(self.lin(arm_left_pose[3], duration))
+        self.appendTFLPitch(self.lin(arm_left_pose[4], duration))
+        self.appendTFLYaw(self.lin(arm_left_pose[5], duration))
+
+        self.appendTFRX(self.lin(arm_right_pose[0], duration))
+        self.appendTFRY(self.lin(arm_right_pose[1], duration))
+        self.appendTFRZ(self.lin(arm_right_pose[2], duration))
+        self.appendTFRRoll(self.lin(arm_right_pose[3], duration))
+        self.appendTFRPitch(self.lin(arm_right_pose[4], duration))
+        self.appendTFRYaw(self.lin(arm_right_pose[5], duration))
+
+        self.appendTFLX(self.acc(arm_left_pose[0], self.profile.tf_link_left_ofs[0], duration))
+        self.appendTFLY(self.acc(arm_left_pose[1], self.profile.tf_link_left_ofs[1], duration))
+        self.appendTFLZ(self.acc(arm_left_pose[2], self.profile.tf_link_left_ofs[2], duration))
+        self.appendTFLRoll(self.acc(arm_left_pose[3], self.profile.tf_link_left_ofs[3], duration))
+        self.appendTFLPitch(self.acc(arm_left_pose[4], self.profile.tf_link_left_ofs[4], duration))
+        self.appendTFLYaw(self.acc(arm_left_pose[5], self.profile.tf_link_left_ofs[5], duration))
+
+        self.appendTFRX(self.acc(arm_right_pose[0], self.profile.tf_link_right_ofs[0], duration))
+        self.appendTFRY(self.acc(arm_right_pose[1], self.profile.tf_link_right_ofs[1], duration))
+        self.appendTFRZ(self.acc(arm_right_pose[2], self.profile.tf_link_right_ofs[2], duration))
+        self.appendTFRRoll(self.acc(arm_right_pose[3], self.profile.tf_link_right_ofs[3], duration))
+        self.appendTFRPitch(self.acc(arm_right_pose[4], self.profile.tf_link_right_ofs[4], duration))
+        self.appendTFRYaw(self.acc(arm_right_pose[5], self.profile.tf_link_right_ofs[5], duration))
+
+        self.syncAllTF()
+        for _ in range(5):
+            self.appendTFZ(self.sin(0, np.pi*2, steptime)*distance)
+
+        self.syncAllTF()
+
+        self.appendTFRoll(self.sin(0, np.pi*2, steptime)*rotation)
+
+        self.syncAllTF()
+
+        self.appendTFZ(self.lin(0, duration))
+
+        self.syncAllTF()
+
+
+
+        #x, y, z = (-0.13359552907580813, 0.1786922026473684, -0.07795942405153466)
+        #roll, pitch, yaw = (0.08664494796262716, -0.4554457398667264, 0.17769110670464244)
+
+        #x += self.profile.tf_link_left_ofs[0]
+        #y += self.profile.tf_link_left_ofs[1]
+        #z += self.profile.tf_link_left_ofs[2]
+
+        #roll += self.profile.tf_link_left_ofs[3]
+        #pitch += self.profile.tf_link_left_ofs[4]
+        #yaw += self.profile.tf_link_left_ofs[5]
+
+        #self.appendTFX(self.acc(0, x, 10))
+        #self.appendTFY(self.acc(0, -z, 10))
+        #self.appendTFZ(self.acc(0, y, 10))
+        #self.appendTFRoll(self.acc(0, roll, 10))
+        #self.appendTFPitch(self.acc(0, pitch, 10))
+        #self.appendTFYaw(self.acc(0, yaw, 10))
 
     def tf_rviz_test(self, steptime=3, distance=0.2, rotation=np.pi/4):
         self.appendTFX(self.sin(0, np.pi*2, steptime)*distance)
@@ -65,7 +151,7 @@ class Stuff(BaseScene):
         self.syncTF()
         self.appendTFRoll(self.sin(0, np.pi*2, steptime)*rotation)
         self.syncTF()
-        self.appendTFPich(self.sin(0, np.pi*2, steptime)*rotation)
+        self.appendTFPitch(self.sin(0, np.pi*2, steptime)*rotation)
         self.syncTF()
         self.appendTFYaw(self.sin(0, np.pi*2, steptime)*rotation)
         self.syncTF()
@@ -138,8 +224,11 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
 
     sh.add_service_callback('scenario/test5', test.move_hold_ball_start, test)
-    sh.add_service_callback('scenario/test6', test.tf_test_z, test)
-    sh.add_service_callback('scenario/test7', test.tf_test_roll, test)
+    sh.add_service_callback('scenario/test6', test.tf_test_startpos, test)
+    sh.add_service_callback('scenario/test7', [test.tf_test_startpos, test.tf_test_z, test.tf_test_startpos], test)
+    sh.add_service_callback('scenario/test8', test.tf_test_roll, test)
+    sh.add_service_callback('scenario/test9', test.fake, test)
+
 
 
 

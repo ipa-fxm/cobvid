@@ -21,6 +21,8 @@ group79:
     ['repeat combine', trigger, test3],
     ['play goal', trigger, test4],
     ['ball start', trigger, test5],
-    ['TF Z', trigger, test6],
-    ['TF ROLL', trigger, test7],
+    ['TF SPOS', trigger, test6],
+    ['TF Z', trigger, test7],
+    ['TF ROLL', trigger, test8],
+    ['GET FRAME', trigger, test9],
     ]
