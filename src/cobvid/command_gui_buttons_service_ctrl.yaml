@@ -52,6 +52,9 @@ group92:
     ['MIMIC', trigger, enable_mimic],
     ['LED', trigger, enable_led],
     ['TF', trigger, enable_tf],
+    ['TRACK LEFT', trigger, enable_tracking_left],
+    ['TRACK RIGHT', trigger, enable_tracking_right],
+
     ]
 group93:
   group_name: 'DISABLE CTRL'
@@ -67,4 +70,6 @@ group93:
     ['MIMIC', trigger, disable_mimic],
     ['LED', trigger, disable_led],
     ['TF', trigger, disable_tf],
+    ['TRACK LEFT', trigger, disable_tracking_left],
+    ['TRACK RIGHT', trigger, disable_tracking_right],
     ]

@@ -11,10 +11,10 @@ try:
     from cob_srvs.srv import Trigger
     print 'trigger srv found'
 
-    #from cob_mimic.srv import SetMimic, SetMimicRequest
-    #print 'mimic srv stuff found'
-    #from cob_mimic.msg import SetMimicAction, SetMimicGoal
-    #print 'mimic msg stuff found'
+    from cob_mimic.srv import SetMimic, SetMimicRequest
+    print 'mimic srv stuff found'
+    from cob_mimic.msg import SetMimicAction, SetMimicGoal
+    print 'mimic msg stuff found'
 
     from cob_srvs.srv import SetString
 
@@ -309,7 +309,8 @@ class ROSBridge(object):
     def __init__(self, fakerun=False, exec_base=False,
                  exec_arm_left=False, exec_arm_right=False,
                  exec_gripper_left=False, exec_gripper_right=False,
-                 exec_mimic=False, exec_led=False, exec_tf=False, timeout=5):
+                 exec_mimic=False, exec_led=False, exec_tf=False,
+                 exec_tracking_left=False, exec_tracking_right=False, timeout=5):
         self.exec_base = exec_base
         self.exec_arm_left = exec_arm_left
         self.exec_arm_right = exec_arm_right
@@ -318,6 +319,8 @@ class ROSBridge(object):
         self.exec_mimic = exec_mimic
         self.exec_led = exec_led
         self.exec_tf = exec_tf
+        self.exec_tracking_left = exec_tracking_left
+        self.exec_tracking_right = exec_tracking_right
 
         BASE_CONTROLLER_TOPIC = '/base_controller/command_direct'
 
@@ -359,19 +362,25 @@ class ROSBridge(object):
             if not fakerun and isLive and exec_arm_right else ROSBridge.Dummy('ARM_RIGHT')
 
         # TF - TRACKING
-        if not fakerun and isLive and exec_tf:
+        if not fakerun and isLive and exec_tracking_left:
             try:
                 rospy.wait_for_service(START_TRACKING_LEFT_SRV, 2)
                 rospy.wait_for_service(STOP_TRACKING_LEFT_SRV, 2)
-                rospy.wait_for_service(START_TRACKING_RIGHT_SRV, 2)
-                rospy.wait_for_service(STOP_TRACKING_RIGHT_SRV, 2)
 
                 self.start_tracking_left_srv = rospy.ServiceProxy(START_TRACKING_LEFT_SRV, SetString)
                 self.stop_tracking_left_srv = rospy.ServiceProxy(STOP_TRACKING_LEFT_SRV, Empty)
-                self.start_tracking_left_srv = rospy.ServiceProxy(START_TRACKING_RIGHT_SRV, SetString)
-                self.stop_tracking_left_srv = rospy.ServiceProxy(STOP_TRACKING_RIGHT_SRV, Empty)
             except:
-                PrettyOutput.init_exit_msg('TRACKING')
+                PrettyOutput.init_exit_msg('TRACKING LEFT')
+
+        if not fakerun and isLive and exec_tracking_right:
+            try:
+                rospy.wait_for_service(START_TRACKING_RIGHT_SRV, 2)
+                rospy.wait_for_service(STOP_TRACKING_RIGHT_SRV, 2)
+
+                self.start_tracking_right_srv = rospy.ServiceProxy(START_TRACKING_RIGHT_SRV, SetString)
+                self.stop_tracking_right_srv = rospy.ServiceProxy(STOP_TRACKING_RIGHT_SRV, Empty)
+            except:
+                PrettyOutput.init_exit_msg('TRACKING RIGHT')
 
         # MIMIC
         if not fakerun and isLive and exec_mimic:
@@ -474,6 +483,7 @@ class ROSBridge(object):
     def _exec_velocity(self, velocity_timeline, step, publisher, enable_idx):
         if velocity_timeline[step][enable_idx]:
             msg = Float64MultiArray(data=velocity_timeline[step][0:enable_idx])
+            print velocity_timeline[step]
             publisher.publish(msg)
 
     def block_velocity_timeline_for_goals(self, timeline, goal_timeline,
@@ -586,6 +596,20 @@ class ROSBridge(object):
             if self.exec_tf:
                 self.tf_call(timeline, step)
 
+            if self.exec_tracking_left and timeline.TF_TRACK_LEFT[step] is not None:
+                print timeline.TF_TRACK_LEFT[step]
+                if timeline.TF_TRACK_LEFT[step][1]:
+                    self.start_tracking_left_srv(timeline.TF_TRACK_LEFT[step][0])
+                else:
+                    self.stop_tracking_left_srv()
+
+            if self.exec_tracking_right and timeline.TF_TRACK_RIGHT[step] is not None:
+                print timeline.TF_TRACK_RIGHT[step]
+                if timeline.TF_TRACK_RIGHT[step][1]:
+                    self.start_tracking_right_srv(timeline.TF_TRACK_RIGHT[step][0])
+                else:
+                    self.stop_tracking_right_srv()
+
 
             rospy.sleep(timeline.profile.sample_time)
 
@@ -630,6 +654,8 @@ class ServiceHandler(object):
         self.is_ros_led = False
 
         self.is_ros_tf = False
+        self.is_tracking_left = False
+        self.is_tracking_right = False
 
         self.is_lab = False
 
@@ -672,6 +698,12 @@ class ServiceHandler(object):
         rospy.Service('/scenario/enable_tf', Trigger, self._enable_tf)
         rospy.Service('/scenario/disable_tf', Trigger, self._disable_tf)
 
+        rospy.Service('/scenario/enable_tracking_left', Trigger, self._enable_tracking_left)
+        rospy.Service('/scenario/disable_tracking_left', Trigger, self._disable_tracking_left)
+
+        rospy.Service('/scenario/enable_tracking_right', Trigger, self._enable_tracking_right)
+        rospy.Service('/scenario/disable_tracking_right', Trigger, self._disable_tracking_right)
+
     def init_startup_args(self):
         self.is_fakerun = '-fakerun' in sys.argv
         self.is_service_mode = '-servicemode' in sys.argv
@@ -686,7 +718,7 @@ class ServiceHandler(object):
 
         self.is_ros = '-ros' in sys.argv
         if self.is_ros:
-            n_ros_params = 8
+            n_ros_params = 10
             idx = sys.argv.index('-ros') + 1
             self.is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+n_ros_params]
@@ -696,26 +728,31 @@ class ServiceHandler(object):
             self.is_ros_mimic = 'mimic' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_led = 'led' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_tf = 'tf' in sys.argv[idx:idx+n_ros_params]
+            self.is_tracking_left = 'tracking_left' in sys.argv[idx:idx+n_ros_params]
+            self.is_tracking_right = 'tracking_right' in sys.argv[idx:idx+n_ros_params]
 
 
     def print_startup_args(self, *_):
         print
         print
-        print 'FAKERUN:          ', self.is_fakerun
+        print 'FAKERUN:             ', self.is_fakerun
         print
-        print 'SERVICE MODE:     ', self.is_service_mode
+        print 'SERVICE MODE:        ', self.is_service_mode
         print
-        print 'ROS ENABLED:      ', self.is_ros
-        print '    ARM LEFT:     ', self.is_ros_arm_left
-        print '    ARM RIGHT:    ', self.is_ros_arm_right
-        print '    GRIPPER LEFT: ', self.is_ros_gripper_left
-        print '    GRIPPER RIGHT:', self.is_ros_gripper_right
-        print '    BASE:         ', self.is_ros_base
+        print 'ROS ENABLED:         ', self.is_ros
+        print '    ARM LEFT:        ', self.is_ros_arm_left
+        print '    ARM RIGHT:       ', self.is_ros_arm_right
+        print '    GRIPPER LEFT:    ', self.is_ros_gripper_left
+        print '    GRIPPER RIGHT:   ', self.is_ros_gripper_right
+        print '    BASE:            ', self.is_ros_base
         print
-        print '    MIMIC:        ', self.is_ros_mimic
-        print '    LED:          ', self.is_ros_led
+        print '    MIMIC:           ', self.is_ros_mimic
+        print '    LED:             ', self.is_ros_led
         print
-        print '    TF :          ', self.is_ros_tf
+        print '    TF :             ', self.is_ros_tf
+        print '    TRACKING LEFT :  ', self.is_tracking_left
+        print '    TRACKING RIGHT : ', self.is_tracking_right
+
         print
 
     def callback_creator(self, service_name, func_list, bound_timeline_object):
@@ -775,8 +812,12 @@ class ServiceHandler(object):
 
         self.init_startup_args()
 
-        if not (self.is_ros_base or self.is_ros_arm_left or self.is_ros_arm_right or self.is_ros_mimic
-                or self.is_ros_led or self.is_ros_gripper_left or self.is_ros_gripper_right or self.is_ros_tf):
+        if not (self.is_ros_base or
+                self.is_ros_arm_left or self.is_ros_arm_right or
+                self.is_ros_mimic or self.is_ros_led or
+                self.is_ros_gripper_left or self.is_ros_gripper_right or
+                self.is_ros_tf or self.is_tracking_left or self.is_tracking_right):
+
             idx = sys.argv.index('-ros')
             sys.argv.pop(idx)
 
@@ -847,6 +888,20 @@ class ServiceHandler(object):
     def _disable_tf(self, *args):
         self._disable_argv('tf', self.is_ros_tf)
 
+    def _enable_tracking_left(self, *args):
+        self._enable_argv('tracking_left', self.is_tracking_left)
+
+    def _disable_tracking_left(self, *args):
+        self._disable_argv('tracking_left', self.is_tracking_left)
+
+    def _enable_tracking_right(self, *args):
+        self._enable_argv('tracking_right', self.is_tracking_right)
+
+    def _disable_tracking_right(self, *args):
+        self._disable_argv('tracking_right', self.is_tracking_right)
+
+
+
     def execute_timeline(self, timeline, is_callback=False):
         if not is_callback and self.is_service_mode:
             PrettyOutput.attation_msg('SERVICEMODE ENABLED - DIRECT EXECUTION FORBIDDEN')
@@ -864,7 +919,9 @@ class ServiceHandler(object):
                                exec_led=self.is_ros_led,
                                exec_gripper_left=self.is_ros_gripper_left,
                                exec_gripper_right=self.is_ros_gripper_right,
-                               exec_tf=self.is_ros_tf)
+                               exec_tf=self.is_ros_tf,
+                               exec_tracking_left=self.is_tracking_left,
+                               exec_tracking_right=self.is_tracking_right)
 
             bridge.exec_timeline(timeline)
 
@@ -932,6 +989,8 @@ class Timeline(object):
         self.TFRRoll = None
         self.TFRPitch = None
         self.TFRYaw = None
+        self.TF_TRACK_LEFT = None
+        self.TF_TRACK_RIGHT = None
 
         self.clear_data()
 
@@ -973,6 +1032,9 @@ class Timeline(object):
         self.TFRRoll = np.array([], np.float64)
         self.TFRPitch = np.array([], np.float64)
         self.TFRYaw = np.array([], np.float64)
+
+        self.TF_TRACK_LEFT = list()
+        self.TF_TRACK_RIGHT = list()
 
     def appendX(self, data):
         self.TLX = np.append(self.TLX, data)
@@ -1144,6 +1206,27 @@ class Timeline(object):
         self.syncTFR(onlyTF=onlyTF, syncToMax=syncToMax)
         self.syncTFL(onlyTF=onlyTF, syncToMax=syncToMax)
 
+    def syncTrackingTFLeft(self):
+        self.TF_TRACK_LEFT = self._evenMaxSamples(self._generatePythonList, [None], 0, self.TF_TRACK_LEFT)
+
+    def syncTrackingTFRight(self):
+        self.TF_TRACK_RIGHT = self._evenMaxSamples(self._generatePythonList, [None], 0, self.TF_TRACK_RIGHT)
+
+    def syncTrackingTF(self):
+            self.syncTrackingTFLeft()
+            self.syncTrackingTFRight()
+
+    def start_tracking_left(self, link_name):
+        self.TF_TRACK_LEFT.append((link_name, True))
+
+    def stop_tracking_left(self, link_name):
+        self.TF_TRACK_LEFT.append((link_name, False))
+
+    def start_tracking_right(self, link_name):
+        self.TF_TRACK_RIGHT.append((link_name, True))
+
+    def stop_tracking_right(self, link_name):
+        self.TF_TRACK_RIGHT.append((link_name, False))
 
     def _createVelArmData(self, j1=None,  j2=None,  j3=None,  j4=None,  j5=None,  j6=None,  j7=None):
         joints = [j1, j2, j3, j4, j5, j6, j7]
@@ -1170,6 +1253,7 @@ class Timeline(object):
         self.syncTimelineLed()
         self.syncTimelineGripper()
         self.syncAllTF()
+        self.syncTrackingTF()
 
     def syncTimelineBase(self):
         self.TLX, self.TLY, self.TLTH = self._evenMaxSamples(np.zeros, [np.float64], 0, self.TLX, self.TLY, self.TLTH)

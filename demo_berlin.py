@@ -19,7 +19,7 @@ class Stuff(BaseScene):
         self.hold_ball_start = {'p1': 0.48, 'p2': 0.92,
                                 'p3': 0.00, 'p4': 1.26,
                                 'p5': 0.00, 'p6': 0.80,
-                                'p7': 0.36-1}
+                                'p7': 0.36-np.pi/2} #np.pi -> 1
 
 
     def move_goal(self):
@@ -62,33 +62,40 @@ class Stuff(BaseScene):
 
     def fake(self, duration=10, steptime=10, distance=0.1, rotation=np.pi/8):
 
-
-        print 'ok'
-        return
-
-
-
         tfh = TransformHelper()
         tfh.add_unknown(self.profile.tf_link_name, self.profile.tf_source_name, self.profile.tf_link_ofs)
         arm_left_pose = tfh.getTransformation(self.profile.tf_link_name, 'arm_left_7_link')
         arm_right_pose = tfh.getTransformation(self.profile.tf_link_name, 'arm_right_7_link')
 
 
-        appendAllTFLFncList = [self.appendTFLX, self.appendTFLY, self.appendTFLZ, self.appendTFLRoll, self.appendTFLPitch, self.appendTFLYaw]
+        #appendAllTFLFncList = [self.appendTFLX, self.appendTFLY, self.appendTFLZ, self.appendTFLRoll, self.appendTFLPitch, self.appendTFLYaw]
 
-        self.appendTFLX(self.lin(arm_left_pose[0], duration))
-        self.appendTFLY(self.lin(arm_left_pose[1], duration))
-        self.appendTFLZ(self.lin(arm_left_pose[2], duration))
-        self.appendTFLRoll(self.lin(arm_left_pose[3], duration))
-        self.appendTFLPitch(self.lin(arm_left_pose[4], duration))
-        self.appendTFLYaw(self.lin(arm_left_pose[5], duration))
 
-        self.appendTFRX(self.lin(arm_right_pose[0], duration))
-        self.appendTFRY(self.lin(arm_right_pose[1], duration))
-        self.appendTFRZ(self.lin(arm_right_pose[2], duration))
-        self.appendTFRRoll(self.lin(arm_right_pose[3], duration))
-        self.appendTFRPitch(self.lin(arm_right_pose[4], duration))
-        self.appendTFRYaw(self.lin(arm_right_pose[5], duration))
+        if arm_right_pose[3] < 0:
+            arm_right_pose[3] = (arm_right_pose[3] + np.pi * 2) % (np.pi * 2)
+
+        if arm_left_pose[3] < 0:
+            arm_left_pose[3] = (arm_left_pose[3] + np.pi * 2) % (np.pi * 2)
+
+        duration_start = 1
+        self.appendTFLX(self.lin(arm_left_pose[0], duration_start))
+        self.appendTFLY(self.lin(arm_left_pose[1], duration_start))
+        self.appendTFLZ(self.lin(arm_left_pose[2], duration_start))
+        self.appendTFLRoll(self.lin(arm_left_pose[3], duration_start))
+        self.appendTFLPitch(self.lin(arm_left_pose[4], duration_start))
+        self.appendTFLYaw(self.lin(arm_left_pose[5], duration_start))
+
+        self.appendTFRX(self.lin(arm_right_pose[0], duration_start))
+        self.appendTFRY(self.lin(arm_right_pose[1], duration_start))
+        self.appendTFRZ(self.lin(arm_right_pose[2], duration_start))
+        self.appendTFRRoll(self.lin(arm_right_pose[3], duration_start))
+        self.appendTFRPitch(self.lin(arm_right_pose[4], duration_start))
+        self.appendTFRYaw(self.lin(arm_right_pose[5], duration_start))
+
+        self.syncTrackingTF()
+        self.start_tracking_left(self.profile.tf_link_left_name)
+        self.start_tracking_right(self.profile.tf_link_right_name)
+
 
         self.appendTFLX(self.acc(arm_left_pose[0], self.profile.tf_link_left_ofs[0], duration))
         self.appendTFLY(self.acc(arm_left_pose[1], self.profile.tf_link_left_ofs[1], duration))
@@ -104,8 +111,10 @@ class Stuff(BaseScene):
         self.appendTFRPitch(self.acc(arm_right_pose[4], self.profile.tf_link_right_ofs[4], duration))
         self.appendTFRYaw(self.acc(arm_right_pose[5], self.profile.tf_link_right_ofs[5], duration))
 
+
+
         self.syncAllTF()
-        for _ in range(5):
+        for _ in range(1):
             self.appendTFZ(self.sin(0, np.pi*2, steptime)*distance)
 
         self.syncAllTF()
@@ -114,29 +123,26 @@ class Stuff(BaseScene):
 
         self.syncAllTF()
 
-        self.appendTFZ(self.lin(0, duration))
+
+        duration_stop = 5
+        self.appendTFZ(self.lin(0, duration_stop))
+
+
+        self.syncTrackingTF()
+        self.stop_tracking_left(self.profile.tf_link_left_name)
+        self.stop_tracking_right(self.profile.tf_link_right_name)
+
+        self.syncAllTF()
+
+
+        duration_stop = 1
+        self.appendTFZ(self.lin(0, duration_stop))
+
 
         self.syncAllTF()
 
 
 
-        #x, y, z = (-0.13359552907580813, 0.1786922026473684, -0.07795942405153466)
-        #roll, pitch, yaw = (0.08664494796262716, -0.4554457398667264, 0.17769110670464244)
-
-        #x += self.profile.tf_link_left_ofs[0]
-        #y += self.profile.tf_link_left_ofs[1]
-        #z += self.profile.tf_link_left_ofs[2]
-
-        #roll += self.profile.tf_link_left_ofs[3]
-        #pitch += self.profile.tf_link_left_ofs[4]
-        #yaw += self.profile.tf_link_left_ofs[5]
-
-        #self.appendTFX(self.acc(0, x, 10))
-        #self.appendTFY(self.acc(0, -z, 10))
-        #self.appendTFZ(self.acc(0, y, 10))
-        #self.appendTFRoll(self.acc(0, roll, 10))
-        #self.appendTFPitch(self.acc(0, pitch, 10))
-        #self.appendTFYaw(self.acc(0, yaw, 10))
 
     def tf_rviz_test(self, steptime=3, distance=0.2, rotation=np.pi/4):
         self.appendTFX(self.sin(0, np.pi*2, steptime)*distance)
