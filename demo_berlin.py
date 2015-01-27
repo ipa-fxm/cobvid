@@ -165,6 +165,146 @@ class DemoScene(BaseScene):
     def __init__(self, profile):
         super(DemoScene, self).__init__(profile)
 
+        self.hold_ball_start = {'p1': 0.48, 'p2': 0.92,
+                                'p3': 0.00, 'p4': 1.26,
+                                'p5': 0.00, 'p6': 0.80,
+                                'p7': 0.36-np.pi/2} #np.pi -> 1
+
+    def move_hold_ball_start(self, duration=8):
+        self.appendArms(self.movePose(duration=duration, pose=self.inject_zero_velocity(self.hold_ball_start)))
+
+    def hold_ball(self, duration=10):
+
+        tfh = TransformHelper()
+        tfh.add_unknown(self.profile.tf_link_name, self.profile.tf_source_name, self.profile.tf_link_ofs)
+        arm_left_pose = tfh.getTransformation(self.profile.tf_link_name, 'arm_left_7_link')
+        arm_right_pose = tfh.getTransformation(self.profile.tf_link_name, 'arm_right_7_link')
+
+
+        #appendAllTFLFncList = [self.appendTFLX, self.appendTFLY, self.appendTFLZ, self.appendTFLRoll, self.appendTFLPitch, self.appendTFLYaw]
+
+
+        if arm_right_pose[3] < 0:
+            arm_right_pose[3] = (arm_right_pose[3] + np.pi * 2) % (np.pi * 2)
+
+        if arm_left_pose[3] < 0:
+            arm_left_pose[3] = (arm_left_pose[3] + np.pi * 2) % (np.pi * 2)
+
+
+        #self.appendTFL(self.profile.tf_link_left_ofs)
+        #self.appendTFL(self.profile.tf_link_right_ofs)
+
+        self.appendTFL(arm_left_pose)
+        self.appendTFR(arm_right_pose)
+        self.appendTFZ(self.lin(0, duration=1))
+        self.syncTimeline()
+
+
+
+
+        '''
+        duration_start = 1
+        self.appendTFLX(self.lin(arm_left_pose[0], duration_start))
+        self.appendTFLY(self.lin(arm_left_pose[1], duration_start))
+        self.appendTFLZ(self.lin(arm_left_pose[2], duration_start))
+        self.appendTFLRoll(self.lin(arm_left_pose[3], duration_start))
+        self.appendTFLPitch(self.lin(arm_left_pose[4], duration_start))
+        self.appendTFLYaw(self.lin(arm_left_pose[5], duration_start))
+
+        self.appendTFRX(self.lin(arm_right_pose[0], duration_start))
+        self.appendTFRY(self.lin(arm_right_pose[1], duration_start))
+        self.appendTFRZ(self.lin(arm_right_pose[2], duration_start))
+        self.appendTFRRoll(self.lin(arm_right_pose[3], duration_start))
+        self.appendTFRPitch(self.lin(arm_right_pose[4], duration_start))
+        self.appendTFRYaw(self.lin(arm_right_pose[5], duration_start))
+        '''
+        self.syncTrackingTF()
+        self.start_tracking_left(self.profile.tf_link_left_name)
+        self.start_tracking_right(self.profile.tf_link_right_name)
+
+
+        self.appendTFLX(self.acc(arm_left_pose[0], self.profile.tf_link_left_ofs[0], duration))
+        self.appendTFLY(self.acc(arm_left_pose[1], self.profile.tf_link_left_ofs[1], duration))
+        self.appendTFLZ(self.acc(arm_left_pose[2], self.profile.tf_link_left_ofs[2], duration))
+        self.appendTFLRoll(self.acc(arm_left_pose[3], self.profile.tf_link_left_ofs[3], duration))
+        self.appendTFLPitch(self.acc(arm_left_pose[4], self.profile.tf_link_left_ofs[4], duration))
+        self.appendTFLYaw(self.acc(arm_left_pose[5], self.profile.tf_link_left_ofs[5], duration))
+
+        self.appendTFRX(self.acc(arm_right_pose[0], self.profile.tf_link_right_ofs[0], duration))
+        self.appendTFRY(self.acc(arm_right_pose[1], self.profile.tf_link_right_ofs[1], duration))
+        self.appendTFRZ(self.acc(arm_right_pose[2], self.profile.tf_link_right_ofs[2], duration))
+        self.appendTFRRoll(self.acc(arm_right_pose[3], self.profile.tf_link_right_ofs[3], duration))
+        self.appendTFRPitch(self.acc(arm_right_pose[4], self.profile.tf_link_right_ofs[4], duration))
+        self.appendTFRYaw(self.acc(arm_right_pose[5], self.profile.tf_link_right_ofs[5], duration))
+
+
+        self.syncAllTF()
+
+
+        duration_stop = 5
+        self.appendTFZ(self.lin(0, duration_stop))
+
+
+
+        self.syncTrackingTF()
+        self.stop_tracking_left(self.profile.tf_link_left_name)
+        self.stop_tracking_right(self.profile.tf_link_right_name)
+
+        self.syncAllTF()
+
+
+        duration_stop = 1
+        self.appendTFZ(self.lin(0, duration_stop))
+
+
+        self.syncAllTF()
+
+
+    def scene_z(self, dotime=10, distance=0.1):
+        self.appendTFL(self.profile.tf_link_left_ofs)
+        self.appendTFR(self.profile.tf_link_right_ofs)
+        self.appendTFZ(self.lin(0, duration=1))
+        self.syncTimeline()
+
+        self.start_tracking_left(self.profile.tf_link_left_name)
+        self.start_tracking_right(self.profile.tf_link_right_name)
+
+        self.appendTFZ(self.sin(0, np.pi*2, dotime)*distance)
+
+        self.syncTimeline()
+
+        self.stop_tracking_left(self.profile.tf_link_left_name)
+        self.stop_tracking_right(self.profile.tf_link_right_name)
+
+        self.appendTFZ(self.lin(0, duration=1))
+        self.syncTimeline()
+
+
+    def scene_roll(self, dotime=10, rotation=np.pi/8):
+        self.appendTFL(self.profile.tf_link_left_ofs)
+        self.appendTFR(self.profile.tf_link_right_ofs)
+        self.appendTFZ(self.lin(0, duration=1))
+        self.syncTimeline()
+
+        self.start_tracking_left(self.profile.tf_link_left_name)
+        self.start_tracking_right(self.profile.tf_link_right_name)
+
+        self.appendTFRoll(self.sin(0, np.pi*2, dotime)*rotation)
+
+        self.syncTimeline()
+
+        # ausregelzeit...
+        self.appendTFZ(self.lin(0, duration=5))
+
+        self.stop_tracking_left(self.profile.tf_link_left_name)
+        self.stop_tracking_right(self.profile.tf_link_right_name)
+
+        self.appendTFZ(self.lin(0, duration=1))
+        self.syncTimeline()
+
+
+
+
     def pose_boring_walk_front_back_c1(self, dotime=12):
         self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_front_back_c1)))
 
@@ -214,21 +354,26 @@ if __name__ == '__main__':
     masterTimeline = test
 
     sh = ServiceHandler()
-    sh.add_service_callback('scenario/po1', demo.pose_boring_walk_front_back_c1, demo)
-    sh.add_service_callback('scenario/po2', demo.pose_cheer_arms_up, demo)
-    sh.add_service_callback('scenario/po3', demo.pose_cheer_turn, demo)
-    sh.add_service_callback('scenario/sc1', demo.cheerTurn, demo)
+
+    sh.add_service_callback('scenario/po1', demo.move_hold_ball_start, demo)
+    sh.add_service_callback('scenario/br1', demo.hold_ball, demo)
+    sh.add_service_callback('scenario/sc1', demo.scene_z, demo)
+    sh.add_service_callback('scenario/sc2', demo.scene_roll, demo)
+
+
+    #sh.add_service_callback('scenario/po1', demo.pose_boring_walk_front_back_c1, demo)
+    #sh.add_service_callback('scenario/po2', demo.pose_cheer_arms_up, demo)
+    #sh.add_service_callback('scenario/po3', demo.pose_cheer_turn, demo)
+    #sh.add_service_callback('scenario/sc1', demo.cheerTurn, demo)
 
     sh.add_service_callback('scenario/test1', test.move_goal, test)
     sh.add_service_callback('scenario/test2', test.move_vel, test)
     sh.add_service_callback('scenario/test3', test.move_combine_repeat, test)
 
-    sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
-
-    sh.add_service_callback('scenario/test5', test.move_hold_ball_start, test)
-    sh.add_service_callback('scenario/test6', test.tf_test_startpos, test)
-    sh.add_service_callback('scenario/test7', [test.tf_test_startpos, test.tf_test_z, test.tf_test_startpos], test)
-    sh.add_service_callback('scenario/test8', test.tf_test_roll, test)
+    #sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
+    #sh.add_service_callback('scenario/test6', test.tf_test_startpos, test)
+    #sh.add_service_callback('scenario/test7', [test.tf_test_startpos, test.tf_test_z, test.tf_test_startpos], test)
+    #sh.add_service_callback('scenario/test8', test.tf_test_roll, test)
     sh.add_service_callback('scenario/test9', test.fake, test)
 
 

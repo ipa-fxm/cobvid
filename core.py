@@ -622,7 +622,7 @@ class ROSBridge(object):
                          tf.transformations.quaternion_from_euler(timeline.TFRoll[step], timeline.TFPitch[step], timeline.TFYaw[step]),
                          rostime, timeline.profile.tf_link_name, timeline.profile.tf_source_name)
 
-
+        print timeline.TFLX[step], timeline.TFLY[step], timeline.TFLZ[step], timeline.TFLRoll[step], timeline.TFLPitch[step], timeline.TFLYaw[step]
 
         self.tf_broadcaster.sendTransform((timeline.TFLX[step], timeline.TFLY[step], timeline.TFLZ[step]),
                          tf.transformations.quaternion_from_euler(timeline.TFLRoll[step], timeline.TFLPitch[step], timeline.TFLYaw[step]),
@@ -1176,12 +1176,30 @@ class Timeline(object):
     def appendTFRYaw(self, data):
         self.TFRYaw = np.append(self.TFRYaw, data)
 
+    def appendTFL(self, data):
+        self.appendTFLX(data[0])
+        self.appendTFLY(data[1])
+        self.appendTFLZ(data[2])
+        self.appendTFLRoll(data[3])
+        self.appendTFLPitch(data[4])
+        self.appendTFLYaw(data[5])
+
+    def appendTFR(self, data):
+        self.appendTFRX(data[0])
+        self.appendTFRY(data[1])
+        self.appendTFRZ(data[2])
+        self.appendTFRRoll(data[3])
+        self.appendTFRPitch(data[4])
+        self.appendTFRYaw(data[5])
+
     def _gen_sync_tf(self, tf_list, onlyTF=False, syncToMax=True):
         operation = max if syncToMax else min
         tf_lens = map(len, tf_list)
         target_size = operation(tf_lens) if onlyTF else self.get_max_length_from_timelines()
         size_remaining_list = [target_size - tf_len for tf_len in tf_lens]
         last_value_list = [tf[-1] if len(tf) else 0 for tf in tf_list]
+        #print tf_list
+        print 'LVL: ', last_value_list
         synced = [np.append(tf, np.array([last_value]*remaining, np.float64))
                   for tf, last_value, remaining in zip(tf_list, last_value_list, size_remaining_list)]
         return synced
