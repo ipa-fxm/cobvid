@@ -10,7 +10,15 @@ group78:
   group_name: 'DEMO'
   component_name: cobvid
   buttons: [
-    ['(1) CHEER_TURN', trigger, sc1],
+    ['P PRE BALL START', trigger, po1],
+    ['TF HOLD BALL', trigger, br1],
+    ['TF Z', trigger, sc1],
+    ['TF ROLL', trigger, sc2],
+    ['TF CROSS YZ', trigger, sc3],
+    ['TF CIRC 8 YZ', trigger, sc4],
+    ['TF MP CIRC XY/Yaw', trigger, sc5],
+    ['TF SCX', trigger, scx],
+
     ]
 group79:
   group_name: 'TEST'
@@ -21,6 +29,8 @@ group79:
     ['repeat combine', trigger, test3],
     ['play goal', trigger, test4],
     ['ball start', trigger, test5],
-    ['TF Z', trigger, test6],
-    ['TF ROLL', trigger, test7],
+    ['TF SPOS', trigger, test6],
+    ['TF Z', trigger, test7],
+    ['TF ROLL', trigger, test8],
+    ['GET FRAME', trigger, test9],
     ]

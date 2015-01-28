@@ -44,6 +44,7 @@ group92:
   buttons: [
     ['restart', trigger, restart],
     ['FAKERUN', trigger, enable_fakerun],
+    ['TABLERUN', trigger, enable_tablerun],
     ['BASE', trigger, enable_base],
     ['ARM LEFT', trigger, enable_arm_left],
     ['ARM RIGHT', trigger, enable_arm_right],
@@ -52,6 +53,9 @@ group92:
     ['MIMIC', trigger, enable_mimic],
     ['LED', trigger, enable_led],
     ['TF', trigger, enable_tf],
+    ['TRACK LEFT', trigger, enable_tracking_left],
+    ['TRACK RIGHT', trigger, enable_tracking_right],
+
     ]
 group93:
   group_name: 'DISABLE CTRL'
@@ -59,6 +63,7 @@ group93:
   buttons: [
     ['status', trigger, status],
     ['FAKERUN', trigger, disable_fakerun],
+    ['TABLERUN', trigger, disable_tablerun],
     ['BASE', trigger, disable_base],
     ['ARM LEFT', trigger, disable_arm_left],
     ['ARM RIGHT', trigger, disable_arm_right],
@@ -67,4 +72,6 @@ group93:
     ['MIMIC', trigger, disable_mimic],
     ['LED', trigger, disable_led],
     ['TF', trigger, disable_tf],
+    ['TRACK LEFT', trigger, disable_tracking_left],
+    ['TRACK RIGHT', trigger, disable_tracking_right],
     ]

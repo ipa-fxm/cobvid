@@ -15,7 +15,7 @@ class GSRecorder(object):
         self.last_data_left = None
         self.last_data_right = None
 
-        self.position_data = {'left': list(), 'right': list()}
+        self.joint_data = {'left': list(), 'right': list()}
 
     def initRos(self):
         rospy.init_node('goal_state_recorder')
@@ -24,16 +24,18 @@ class GSRecorder(object):
     def joint_callback(self, data):
 
         if 'arm_left_1_joint' in data.name:
-            self.last_data_left = data.position
+            self.last_data_left = list(data.position)
+            self.last_data_left.extend(data.velocity)
 
         if 'arm_right_1_joint' in data.name:
-            self.last_data_right = data.position
+            self.last_data_right = list(data.position)
+            self.last_data_right.extend(data.velocity)
 
 
     def grep_data(self, data):
         if self.last_data_left is not None and self.last_data_right is not None:
-            self.position_data['left'].append(self.last_data_left)
-            self.position_data['right'].append(self.last_data_right)
+            self.joint_data['left'].append(self.last_data_left)
+            self.joint_data['right'].append(self.last_data_right)
         else:
             print 'NOT RECORDED, MISSING DATA...'
 
@@ -57,7 +59,7 @@ class GSRecorder(object):
                 raise
 
         with open('../trajectory_goal_data/trajectory_goal.yaml', 'w') as f:
-            yaml.safe_dump(self.position_data, f)
+            yaml.safe_dump(self.joint_data, f)
 
 
 if __name__ == '__main__':
