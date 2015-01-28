@@ -171,6 +171,7 @@ class DemoScene(BaseScene):
                                 'p7': 0.36-np.pi/2} #np.pi -> 1
 
     def move_hold_ball_start(self, duration=8):
+        self.appendMimic('happy')
         self.appendArms(self.movePose(duration=duration, pose=self.inject_zero_velocity(self.hold_ball_start)))
 
     def hold_ball(self, duration=10):
@@ -279,8 +280,8 @@ class DemoScene(BaseScene):
         self.appendTFZ(self.lin(0, duration=1))
         self.syncTimeline()
 
-
-    def scene_roll(self, dotime=10, rotation=np.pi/8):
+    def part_start_tracking(self):
+        self.syncTimeline()
         self.appendTFL(self.profile.tf_link_left_ofs)
         self.appendTFR(self.profile.tf_link_right_ofs)
         self.appendTFZ(self.lin(0, duration=1))
@@ -288,20 +289,95 @@ class DemoScene(BaseScene):
 
         self.start_tracking_left(self.profile.tf_link_left_name)
         self.start_tracking_right(self.profile.tf_link_right_name)
-
-        self.appendTFRoll(self.sin(0, np.pi*2, dotime)*rotation)
-
         self.syncTimeline()
 
-        # ausregelzeit...
+    def part_stop_tracking(self):
+        self.syncTimeline()
+
+        #FIXME: control settling time... should not be needed!!!
         self.appendTFZ(self.lin(0, duration=5))
+
+        self.syncTimeline()
 
         self.stop_tracking_left(self.profile.tf_link_left_name)
         self.stop_tracking_right(self.profile.tf_link_right_name)
 
         self.appendTFZ(self.lin(0, duration=1))
+
         self.syncTimeline()
 
+    def scene_roll(self, dotime=8, rotation=np.pi/8):
+        self.syncTimeline()
+
+        self.appendTFRoll(self.sin(0, np.pi*2, dotime)*rotation)
+
+        self.syncTimeline()
+
+    def scene_cross_yz(self, duration=15, distance=0.1):
+
+        shortduration = duration * 1.0/8.0
+        longduration = duration * 2.0/8.0
+
+        self.appendTFZ(self.acc(0, distance, shortduration))
+        self.appendTFZ(self.acc(distance, -distance, longduration))
+        self.appendTFZ(self.acc(-distance, 0, shortduration))
+
+        self.syncTimeline()
+
+        self.appendTFY(self.acc(0, distance, shortduration))
+        self.appendTFY(self.acc(distance, -distance, longduration))
+        self.appendTFY(self.acc(-distance, 0, shortduration))
+
+
+    def scene_circ_8_yz(self, acc_time=2, duration_circle=6, distance=0.1):
+
+        self.syncTimeline()
+        sideofs = distance / np.sqrt(2)
+        hypofs = distance * np.sqrt(2)
+
+        acc_dec_data = self.acc(0, sideofs*2, acc_time*2)
+        acc_data = acc_dec_data[:len(acc_dec_data)//2]
+        #dec_data = acc_dec_data[len(acc_dec_data)//2:]
+
+        self.appendTFZ(acc_data)
+        self.appendTFY(acc_data)
+
+        circ_z_top = self.sin(-np.pi/4, np.pi*5/4, duration_circle)*distance + hypofs
+        circ_y_top = self.cos(-np.pi/4, np.pi*5/4, duration_circle)*distance
+        self.appendTFZ(circ_z_top)
+        self.appendTFY(circ_y_top)
+
+
+        lin_data = np.linspace(sideofs, 0, sideofs / (acc_data[-1] - acc_data[-2]))
+        self.appendTFZ(lin_data)
+        self.appendTFY(lin_data*-1)
+
+        ##### mirroring #####
+
+        self.appendTFZ(lin_data[::-1]*-1)
+        self.appendTFY(lin_data[::-1])
+
+        self.appendTFZ(circ_z_top[::-1]*-1)
+        self.appendTFY(circ_y_top[::-1]*-1)
+
+        self.appendTFZ(acc_data[::-1]*-1)
+        self.appendTFY(acc_data[::-1]*-1)
+
+
+
+        self.syncTimeline()
+
+    def scene_mp_circ_xy_yaw(self, duration=20.0, phi=np.pi/8, radian=0.2):
+        th = np.array([])
+        th = np.append(th, self.acc(0, phi, duration/4.0))
+        th = np.append(th, self.acc(phi, -phi, duration/2.0))
+        th = np.append(th, self.acc(-phi, 0, duration/4.0))
+
+        self.appendTFYaw(th)
+        self.appendTFY(np.sin(th)*-radian)
+        self.appendTFX(radian-np.cos(th)*radian)
+
+        self.syncTimeline()
 
 
 
@@ -349,17 +425,27 @@ if __name__ == '__main__':
 
     test = Stuff(cob4_2_profile)
 
-    test.tf_test_z()
+    demo.scene_roll()
 
-    masterTimeline = test
+    masterTimeline = demo
 
     sh = ServiceHandler()
 
     sh.add_service_callback('scenario/po1', demo.move_hold_ball_start, demo)
     sh.add_service_callback('scenario/br1', demo.hold_ball, demo)
     sh.add_service_callback('scenario/sc1', demo.scene_z, demo)
-    sh.add_service_callback('scenario/sc2', demo.scene_roll, demo)
+    sh.add_service_callback('scenario/sc2', [demo.part_start_tracking, demo.scene_roll, demo.part_stop_tracking], demo)
 
+
+    sh.add_service_callback('scenario/sc3', [demo.part_start_tracking, demo.scene_cross_yz, demo.part_stop_tracking], demo)
+    sh.add_service_callback('scenario/sc4', [demo.part_start_tracking, demo.scene_circ_8_yz, demo.part_stop_tracking], demo)
+    sh.add_service_callback('scenario/sc5', [demo.part_start_tracking, demo.scene_mp_circ_xy_yaw, demo.part_stop_tracking], demo)
+
+    #sh.add_service_callback('scenario/sc3', demo.scene_cross_yz, demo)
+    #sh.add_service_callback('scenario/sc4', demo.scene_circ_8_yz, demo)
+    #sh.add_service_callback('scenario/sc5', demo.scene_mp_circ_xy_yaw, demo)
+
+    sh.add_service_callback('scenario/scx', [demo.part_start_tracking, demo.scene_roll, demo.scene_cross_yz, demo.scene_circ_8_yz, demo.scene_mp_circ_xy_yaw, demo.part_stop_tracking], demo)
 
     #sh.add_service_callback('scenario/po1', demo.pose_boring_walk_front_back_c1, demo)
     #sh.add_service_callback('scenario/po2', demo.pose_cheer_arms_up, demo)
@@ -370,7 +456,7 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/test2', test.move_vel, test)
     sh.add_service_callback('scenario/test3', test.move_combine_repeat, test)
 
-    #sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
+    sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
     #sh.add_service_callback('scenario/test6', test.tf_test_startpos, test)
     #sh.add_service_callback('scenario/test7', [test.tf_test_startpos, test.tf_test_z, test.tf_test_startpos], test)
     #sh.add_service_callback('scenario/test8', test.tf_test_roll, test)

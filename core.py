@@ -58,6 +58,8 @@ import string
 import operator as op
 import yaml
 
+import colorama
+
 class DummyObject(object):
     def __init__(self, *args, **kwargs):
         pass
@@ -306,11 +308,12 @@ class ROSBridge(object):
         def param_call(self, *args):
             print 'FAKE: %s:   %s' % (self.topic_name, args)
 
-    def __init__(self, fakerun=False, exec_base=False,
+    def __init__(self, fakerun=False, tablerun=False, exec_base=False,
                  exec_arm_left=False, exec_arm_right=False,
                  exec_gripper_left=False, exec_gripper_right=False,
                  exec_mimic=False, exec_led=False, exec_tf=False,
                  exec_tracking_left=False, exec_tracking_right=False, timeout=5):
+        self.tablerun = tablerun
         self.exec_base = exec_base
         self.exec_arm_left = exec_arm_left
         self.exec_arm_right = exec_arm_right
@@ -517,16 +520,20 @@ class ROSBridge(object):
 
     @staticmethod
     def _exit_task():
+        print colorama.Fore.RED,
         PrettyOutput.attation_msg('EXITING TASK')
+        print colorama.Fore.RESET
         ROSBridge.ACTIVE_TASK = False
         exit()
 
     def exec_timeline(self, timeline):
         if ROSBridge.ACTIVE_TASK:
+
+            print colorama.Fore.RED,
             PrettyOutput.attation_msg('ANOTHER TASK STILL RUNNING - SKIP EXECUTION OF NEW TASK')
+            print colorama.Fore.RESET
             return
 
-        ROSBridge.ACTIVE_TASK = True
 
         timeline.syncTimeline()
 
@@ -553,9 +560,67 @@ class ROSBridge(object):
         if self.exec_tf:
             self.prepare_tf(timeline=timeline)
 
+        print colorama.Style.BRIGHT,
         PrettyOutput.attation_msg('TIMELINE STARTING...')
+        print colorama.Style.RESET_ALL
+
+        if self.tablerun:
+            from prettytable import PrettyTable
+            from colorama import Fore, Back, Style
+
+            table_header = ['ARML_GOAL', 'ARML_VEL', 'ARMR_GOAL', 'ARMR_VEL',
+                            'GRIPPERL_GOAL', 'GRIPPERR_GOAL', 'LED', 'MIMIC',
+                            'SECTIONS', 'TFLPitch', 'TFLRoll', 'TFLX', 'TFLY', 'TFLYaw',
+                            'TFLZ', 'TFPitch', 'TFRPitch', 'TFRRoll', 'TFRX', 'TFRY',
+                            'TFRYaw', 'TFRZ', 'TFRoll', 'TFX', 'TFY', 'TFYaw', 'TFZ',
+                            'TF_TRACK_LEFT', 'TF_TRACK_RIGHT', 'TLTH', 'TLX', 'TLY']
+            timeline_names = ['TLX', 'TLY', 'TLTH',
+                              'TFX', 'TFY', 'TFZ', 'TFRoll', 'TFPitch', 'TFYaw',
+                              'TFLX', 'TFLY', 'TFLZ', 'TFLRoll', 'TFLPitch', 'TFLYaw',
+                              'TFRX', 'TFRY', 'TFRZ', 'TFRRoll', 'TFRPitch', 'TFRYaw',
+                              'TF_TRACK_LEFT', 'TF_TRACK_RIGHT',]
+
+            table_header = ['t [s]']
+            table_header.extend(timeline_names)
+
+
+
+                            #'ARMR_VEL', 'GRIPPERL_GOAL', 'GRIPPERR_GOAL', 'LED', 'MIMIC',
+                            #'SECTIONS', 'TFLPitch', 'TFLRoll', 'TFLX', 'TFLY', 'TFLYaw',
+                            #'TFLZ', 'TFRPitch', 'TFRRoll', 'TFRX', 'TFRY',
+                            #'TFRYaw', 'TFRZ',
+                            # '', '', '']
+
+            table = PrettyTable(timeline_names)
+            table.add_row([len(getattr(timeline, name)) for name in timeline_names])
+            print table.get_string()
+
+
+
+            table = PrettyTable()
+
+            timeline_time = np.arange(0, timeline.get_max_length_from_timelines(), ) * timeline.profile.sample_time
+            table.add_column('%st [s]%s' % (Style.BRIGHT, Style.RESET_ALL), ['%s%.2f%s' % (Style.BRIGHT, value, Style.RESET_ALL) for value in np.round(timeline_time, 2)], 'l')
+            for name in timeline_names:
+                attr = getattr(timeline, name)
+                try:
+                    attr_formated = np.round(attr, 2)
+                    attr_formated = ['%s%.2f%s' % (Fore.BLACK if value == 0 else '', value, Fore.RESET) for value in attr_formated]
+                except:
+                    attr_formated = attr
+                    attr_formated = ['%s%s%s' % (Fore.BLACK if value is None else '', value, Fore.RESET) for value in attr_formated]
+
+                table.add_column('%s%s%s' % (Style.BRIGHT, name, Style.RESET_ALL), attr_formated)
+
+
+            print table.get_string()
+
+            return
+
+        ROSBridge.ACTIVE_TASK = True
 
         for step in range(timeline.get_max_length_from_timelines()):
+
             if self.exec_base:
                 twist = Twist()
                 twist.linear.x = timeline.TLX[step]
@@ -596,24 +661,27 @@ class ROSBridge(object):
             if self.exec_tf:
                 self.tf_call(timeline, step)
 
+            #TODO: needs refactoring to fix redundancy
             if self.exec_tracking_left and timeline.TF_TRACK_LEFT[step] is not None:
-                print timeline.TF_TRACK_LEFT[step]
                 if timeline.TF_TRACK_LEFT[step][1]:
                     self.start_tracking_left_srv(timeline.TF_TRACK_LEFT[step][0])
                 else:
                     self.stop_tracking_left_srv()
 
             if self.exec_tracking_right and timeline.TF_TRACK_RIGHT[step] is not None:
-                print timeline.TF_TRACK_RIGHT[step]
                 if timeline.TF_TRACK_RIGHT[step][1]:
                     self.start_tracking_right_srv(timeline.TF_TRACK_RIGHT[step][0])
                 else:
                     self.stop_tracking_right_srv()
 
 
+
+
             rospy.sleep(timeline.profile.sample_time)
 
         ROSBridge.ACTIVE_TASK = False
+
+
 
     def tf_call(self, timeline, step):
 
@@ -621,8 +689,6 @@ class ROSBridge(object):
         self.tf_broadcaster.sendTransform((timeline.TFX[step], timeline.TFY[step], timeline.TFZ[step]),
                          tf.transformations.quaternion_from_euler(timeline.TFRoll[step], timeline.TFPitch[step], timeline.TFYaw[step]),
                          rostime, timeline.profile.tf_link_name, timeline.profile.tf_source_name)
-
-        print timeline.TFLX[step], timeline.TFLY[step], timeline.TFLZ[step], timeline.TFLRoll[step], timeline.TFLPitch[step], timeline.TFLYaw[step]
 
         self.tf_broadcaster.sendTransform((timeline.TFLX[step], timeline.TFLY[step], timeline.TFLZ[step]),
                          tf.transformations.quaternion_from_euler(timeline.TFLRoll[step], timeline.TFLPitch[step], timeline.TFLYaw[step]),
@@ -637,6 +703,7 @@ class ROSBridge(object):
 class ServiceHandler(object):
     def __init__(self):
         self.is_fakerun = False
+        self.is_tablerun = False
 
         self.is_service_mode = False
 
@@ -674,6 +741,9 @@ class ServiceHandler(object):
         rospy.Service('/scenario/enable_fakerun', Trigger, self._enable_fakerun)
         rospy.Service('/scenario/disable_fakerun', Trigger, self._disable_fakerun)
 
+        rospy.Service('/scenario/enable_tablerun', Trigger, self._enable_tablerun)
+        rospy.Service('/scenario/disable_tablerun', Trigger, self._disable_tablerun)
+
         rospy.Service('/scenario/enable_base', Trigger, self._enable_base)
         rospy.Service('/scenario/disable_base', Trigger, self._disable_base)
 
@@ -705,6 +775,7 @@ class ServiceHandler(object):
         rospy.Service('/scenario/disable_tracking_right', Trigger, self._disable_tracking_right)
 
     def init_startup_args(self):
+        self.is_tablerun = '-tablerun' in sys.argv
         self.is_fakerun = '-fakerun' in sys.argv
         self.is_service_mode = '-servicemode' in sys.argv
 
@@ -733,35 +804,42 @@ class ServiceHandler(object):
 
 
     def print_startup_args(self, *_):
+        colorwrap = lambda value: '%s%s%s' % (colorama.Fore.GREEN if value else colorama.Fore.RED, value, colorama.Fore.RESET)
+
         print
         print
-        print 'FAKERUN:             ', self.is_fakerun
+        print 'FAKERUN:             ', colorwrap(self.is_fakerun)
+        print 'TABLERUN:            ', colorwrap(self.is_tablerun)
         print
-        print 'SERVICE MODE:        ', self.is_service_mode
+        print 'SERVICE MODE:        ', colorwrap(self.is_service_mode)
         print
-        print 'ROS ENABLED:         ', self.is_ros
-        print '    ARM LEFT:        ', self.is_ros_arm_left
-        print '    ARM RIGHT:       ', self.is_ros_arm_right
-        print '    GRIPPER LEFT:    ', self.is_ros_gripper_left
-        print '    GRIPPER RIGHT:   ', self.is_ros_gripper_right
-        print '    BASE:            ', self.is_ros_base
+        print 'ROS ENABLED:         ', colorwrap(self.is_ros)
+        print '    ARM LEFT:        ', colorwrap(self.is_ros_arm_left)
+        print '    ARM RIGHT:       ', colorwrap(self.is_ros_arm_right)
+        print '    GRIPPER LEFT:    ', colorwrap(self.is_ros_gripper_left)
+        print '    GRIPPER RIGHT:   ', colorwrap(self.is_ros_gripper_right)
+        print '    BASE:            ', colorwrap(self.is_ros_base)
         print
-        print '    MIMIC:           ', self.is_ros_mimic
-        print '    LED:             ', self.is_ros_led
+        print '    MIMIC:           ', colorwrap(self.is_ros_mimic)
+        print '    LED:             ', colorwrap(self.is_ros_led)
         print
-        print '    TF :             ', self.is_ros_tf
-        print '    TRACKING LEFT :  ', self.is_tracking_left
-        print '    TRACKING RIGHT : ', self.is_tracking_right
+        print '    TF :             ', colorwrap(self.is_ros_tf)
+        print '    TRACKING LEFT :  ', colorwrap(self.is_tracking_left)
+        print '    TRACKING RIGHT : ', colorwrap(self.is_tracking_right)
 
         print
 
     def callback_creator(self, service_name, func_list, bound_timeline_object):
         def callback_function(_):
+            print colorama.Fore.GREEN,
             PrettyOutput.attation_msg('CALLBACK TRIGGERED: %s' % service_name)
+            print colorama.Fore.RESET
             bound_timeline_object.clear_data()
             [fnc() for fnc in func_list]
             self.execute_timeline(bound_timeline_object, is_callback=True)
+            print colorama.Fore.MAGENTA,
             PrettyOutput.attation_msg('END OF CALLBACK: %s' % service_name)
+            print colorama.Fore.RESET
         return callback_function
 
     def add_service_callback(self, service_name, func_list, bound_timline_object):
@@ -787,7 +865,9 @@ class ServiceHandler(object):
 
     def _inplace_restart(self, *args):
         for _ in range(50): print
+        print colorama.Fore.YELLOW,
         PrettyOutput.attation_msg('RESTARTING APPLICATION')
+        print colorama.Fore.RESET
         os.execv(sys.argv[0], sys.argv)
 
     def _enable_argv(self, argname, argvar):
@@ -842,6 +922,23 @@ class ServiceHandler(object):
             return
 
         idx = sys.argv.index('-fakerun')
+        sys.argv.pop(idx)
+
+        self._inplace_restart()
+
+    def _enable_tablerun(self, *args):
+        if self.is_tablerun:
+            return
+
+        sys.argv.append('-tablerun')
+
+        self._inplace_restart()
+
+    def _disable_tablerun(self, *args):
+        if not self.is_tablerun:
+            return
+
+        idx = sys.argv.index('-tablerun')
         sys.argv.pop(idx)
 
         self._inplace_restart()
@@ -912,6 +1009,7 @@ class ServiceHandler(object):
 
         if self.is_ros:
             bridge = ROSBridge(fakerun=self.is_fakerun,
+                               tablerun=self.is_tablerun,
                                exec_base=self.is_ros_base,
                                exec_arm_left=self.is_ros_arm_left,
                                exec_arm_right=self.is_ros_arm_right,
@@ -928,7 +1026,9 @@ class ServiceHandler(object):
 
     def startup(self, timeline):
 
+        print colorama.Fore.CYAN,
         PrettyOutput.attation_msg('APPLICATION STARTED')
+        print colorama.Fore.RESET
 
         if not self.is_service_mode:
             self.execute_timeline(timeline)
@@ -1199,7 +1299,7 @@ class Timeline(object):
         size_remaining_list = [target_size - tf_len for tf_len in tf_lens]
         last_value_list = [tf[-1] if len(tf) else 0 for tf in tf_list]
         #print tf_list
-        print 'LVL: ', last_value_list
+        #print 'LVL: ', last_value_list
         synced = [np.append(tf, np.array([last_value]*remaining, np.float64))
                   for tf, last_value, remaining in zip(tf_list, last_value_list, size_remaining_list)]
         return synced
@@ -1317,6 +1417,7 @@ class Timeline(object):
         timelines.extend([self.TFX, self.TFY, self.TFZ, self.TFRoll, self.TFPitch, self.TFYaw])
         timelines.extend([self.TFLX, self.TFLY, self.TFLZ, self.TFLRoll, self.TFLPitch, self.TFLYaw])
         timelines.extend([self.TFRX, self.TFRY, self.TFRZ, self.TFRRoll, self.TFRPitch, self.TFRYaw])
+        timelines.extend([self.TF_TRACK_LEFT, self.TF_TRACK_RIGHT])
         return max(map(len, timelines))
 
     def __len__(self):
@@ -1473,10 +1574,16 @@ class JTP(object):
 
         jtp_list = [list(), list()]
         for left_data in trajectory_goal_data['left']:
-            jtp_list[0].append(JTP(1, *left_data))
+            new_data = list()
+            new_data.extend(left_data[:7])
+            new_data.extend([val*2 for val in left_data[7:]])
+            jtp_list[0].append(JTP(0.5, *new_data))
 
         for right_data in trajectory_goal_data['right']:
-            jtp_list[1].append(JTP(1, *right_data))
+            new_data = list()
+            new_data.extend(right_data[:7])
+            new_data.extend([val*2 for val in right_data[7:]])
+            jtp_list[1].append(JTP(0.5, *new_data))
 
         return jtp_list
 

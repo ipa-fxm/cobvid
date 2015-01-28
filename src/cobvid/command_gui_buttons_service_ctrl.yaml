@@ -44,6 +44,7 @@ group92:
   buttons: [
     ['restart', trigger, restart],
     ['FAKERUN', trigger, enable_fakerun],
+    ['TABLERUN', trigger, enable_tablerun],
     ['BASE', trigger, enable_base],
     ['ARM LEFT', trigger, enable_arm_left],
     ['ARM RIGHT', trigger, enable_arm_right],
@@ -62,6 +63,7 @@ group93:
   buttons: [
     ['status', trigger, status],
     ['FAKERUN', trigger, disable_fakerun],
+    ['TABLERUN', trigger, disable_tablerun],
     ['BASE', trigger, disable_base],
     ['ARM LEFT', trigger, disable_arm_left],
     ['ARM RIGHT', trigger, disable_arm_right],
