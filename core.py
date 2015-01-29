@@ -1527,56 +1527,86 @@ class TransformHelper(object):
 
 class JointRecorder(object):
     IS_RECORDING = False
-    LAST_DATA_LEFT = None
-    LAST_DATA_RIGHT = None
-    JOINT_DATA = None
-    SUBSCRIBER = None
-    TIMER = None
-    SAMPLETIME = 1.0
+    LAST_DATA_LEFT = list()
+    LAST_DATA_RIGHT = list()
+    JOINT_DATA = {'sampletime': 0.5, 'left': list(), 'right': list()}
+    SUBSCRIBER = list()
+    TIMER = list()
 
     @staticmethod
     def start_listen():
+        print 'start_listen, is recording?', JointRecorder.IS_RECORDING
         if JointRecorder.IS_RECORDING:
             return
-        rospy.init_node('goal_state_recorder')
-        JointRecorder.SUBSCRIBER = rospy.Subscriber('/joint_states', JointState,
-                                                    JointRecorder.joint_callback)
+        #print 'start_listen, init node'
+        #rospy.init_node('goal_state_recorder')
+        print 'start_listen, subscribe'
+        JointRecorder.SUBSCRIBER.append(rospy.Subscriber('/joint_states', JointState,
+                                                    JointRecorder.joint_callback))
 
     @staticmethod
     def stop_listen():
-        JointRecorder.SUBSCRIBER.unregister()
+        #JointRecorder.SUBSCRIBER[0].unregister()
+        JointRecorder.SUBSCRIBER.pop().unregister()
+
+    @staticmethod
+    def start_timer():
+
+        JointRecorder.TIMER.append(rospy.Timer(rospy.Duration(JointRecorder.JOINT_DATA['sampletime']),
+                                          JointRecorder.grep_data))
+
+    @staticmethod
+    def stop_timer():
+        #JointRecorder.TIMER[0].shutdown()
+        JointRecorder.TIMER.pop().shutdown()
 
     @staticmethod
     def start_record_callback(_):
+        print 'start_record_callback'
         JointRecorder.start_record()
 
     @staticmethod
     def stop_record_callback(_):
         JointRecorder.stop_record()
+        sys.exit()
 
     @staticmethod
     def start_record():
+        print 'start_record, is recording?', JointRecorder.IS_RECORDING
         if JointRecorder.IS_RECORDING:
             return
-        JointRecorder.IS_RECORDING = True
+
+        PrettyOutput.attation_msg('START RECORDING')
+
+        JointRecorder.JOINT_DATA['left'] = list()
+        JointRecorder.JOINT_DATA['right'] = list()
 
         JointRecorder.start_listen()
-        JointRecorder.TIMER = rospy.Timer(rospy.Duration(JointRecorder.SAMPLETIME),
-                                          JointRecorder.grep_data)
+        JointRecorder.start_timer()
+
+        JointRecorder.IS_RECORDING = True
 
         while JointRecorder.IS_RECORDING:
-            rospy.sleep(JointRecorder.SAMPLETIME)
-
-        JointRecorder.TIMER.shutdown()
-        JointRecorder.SUBSCRIBER.unregister()
-        JointRecorder.save()
+            print 'JointRecorder.IS_RECORDING'
+            rospy.sleep(JointRecorder.JOINT_DATA['sampletime']/3.0)
+        sys.exit()
 
     @staticmethod
     def stop_record():
+
+        PrettyOutput.attation_msg('STOP RECORDING')
+
         JointRecorder.IS_RECORDING = False
 
+        JointRecorder.stop_timer()
+        JointRecorder.stop_listen()
+        JointRecorder.save()
+
+
+
     @staticmethod
-    def joint_callback(self, data):
+    def joint_callback(data):
+        #print 'joint_callback', data
         if 'arm_left_1_joint' in data.name:
             JointRecorder.LAST_DATA_LEFT = list(data.position)
             JointRecorder.LAST_DATA_LEFT.extend(data.velocity)
@@ -1594,12 +1624,14 @@ class JointRecorder(object):
         else:
             print 'NOT RECORDED, MISSING DATA...'
 
+        print JointRecorder.IS_RECORDING
+
         print 'RECORDED LEFT: ', JointRecorder.LAST_DATA_RIGHT
         print 'RECORDED RIGHT:', JointRecorder.LAST_DATA_LEFT
         print '--'
 
     @staticmethod
-    def save(self):
+    def save():
         try:
             os.makedirs('trajectory_goal_data')
         except OSError as ex:
@@ -1608,6 +1640,8 @@ class JointRecorder(object):
 
         with open('trajectory_goal_data/trajectory_goal.yaml', 'w') as f:
             yaml.safe_dump(JointRecorder.JOINT_DATA, f)
+            f.flush()
+
 
 
 class JTP(object):
@@ -1655,23 +1689,26 @@ class JTP(object):
         return JTP(jtp.time_from_start, *args)
 
     @staticmethod
-    def load_trajectory_goal(filename):
+    def load_trajectory_goal(filename, replaySpeedFactor=1.0):
 
         with open(filename, 'r') as f:
             trajectory_goal_data = yaml.safe_load(f)
+
+        sampleTime = trajectory_goal_data['sampletime']/replaySpeedFactor
+        velScale = trajectory_goal_data['sampletime']*replaySpeedFactor
 
         jtp_list = [list(), list()]
         for left_data in trajectory_goal_data['left']:
             new_data = list()
             new_data.extend(left_data[:7])
-            new_data.extend([val*2 for val in left_data[7:]])
-            jtp_list[0].append(JTP(0.5, *new_data))
+            new_data.extend([val*velScale for val in left_data[7:]])
+            jtp_list[0].append(JTP(sampleTime, *new_data))
 
         for right_data in trajectory_goal_data['right']:
             new_data = list()
             new_data.extend(right_data[:7])
-            new_data.extend([val*2 for val in right_data[7:]])
-            jtp_list[1].append(JTP(0.5, *new_data))
+            new_data.extend([val*velScale for val in right_data[7:]])
+            jtp_list[1].append(JTP(sampleTime, *new_data))
 
         return jtp_list
 

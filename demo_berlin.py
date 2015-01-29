@@ -26,7 +26,7 @@ class Stuff(BaseScene):
         self.appendArms(self.movePose(duration=2, pose=self.inject_zero_velocity(self.pose_test)))
 
     def move_vel(self):
-        signal = self.lin(velocity=-0.3, duration=2)
+        signal = self.lin(velocity=-0.0, duration=2)
         self.appendVelArmLeft(j3=signal)
         self.appendVelArmRight(j3=signal*-1)
 
@@ -40,7 +40,7 @@ class Stuff(BaseScene):
             self.syncTimeline()
 
     def play_recorded_trajectory_goal(self):
-        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal.yaml')
+        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal.yaml', 1.0)
         self.appendArms(jtp_list)
 
     def move_hold_ball_start(self, duration=8):
@@ -306,7 +306,7 @@ class DemoScene(BaseScene):
 
         self.syncTimeline()
 
-    def scene_roll(self, dotime=8, rotation=np.pi/8):
+    def scene_roll(self, dotime=16, rotation=np.pi/8):
         self.syncTimeline()
 
         self.appendTFRoll(self.sin(0, np.pi*2, dotime)*rotation)
@@ -415,7 +415,7 @@ class DemoScene(BaseScene):
 
 
 if __name__ == '__main__':
-    cob4_2_profile = Profile(rate=30, max_linear_velocity=0.7,
+    cob4_2_profile = Profile(rate=50, max_linear_velocity=0.7,
                              max_angular_velocity=2.7,
                              max_linear_acceleration=0.022,
                              max_angular_acceleration=0.074,
