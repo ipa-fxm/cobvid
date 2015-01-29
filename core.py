@@ -35,7 +35,6 @@ import actionlib
 import tf
 
 # ROS MSGS
-
 from geometry_msgs.msg import Twist
 from control_msgs.msg import FollowJointTrajectoryAction
 from control_msgs.msg import FollowJointTrajectoryGoal
@@ -43,6 +42,8 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 from std_msgs.msg import Float64MultiArray
 from std_srvs.srv import Empty
 from actionlib_msgs.msg import GoalStatus
+
+from sensor_msgs.msg import JointState
 
 # IMPORT FOR CALCULATIONS
 import numpy as np
@@ -57,7 +58,9 @@ import os
 import string
 import operator as op
 import yaml
+import errno
 
+# EXTERNAL
 import colorama
 
 class DummyObject(object):
@@ -773,6 +776,9 @@ class ServiceHandler(object):
 
         rospy.Service('/scenario/enable_tracking_right', Trigger, self._enable_tracking_right)
         rospy.Service('/scenario/disable_tracking_right', Trigger, self._disable_tracking_right)
+
+        rospy.Service('/scenario/start_recording', Trigger, JointRecorder.start_record_callback)
+        rospy.Service('/scenario/stop_recording', Trigger, JointRecorder.stop_record_callback)
 
     def init_startup_args(self):
         self.is_tablerun = '-tablerun' in sys.argv
@@ -1519,7 +1525,89 @@ class TransformHelper(object):
                           rospy.Time.now(), link_name, parent_link_name)
 
 
+class JointRecorder(object):
+    IS_RECORDING = False
+    LAST_DATA_LEFT = None
+    LAST_DATA_RIGHT = None
+    JOINT_DATA = None
+    SUBSCRIBER = None
+    TIMER = None
+    SAMPLETIME = 1.0
 
+    @staticmethod
+    def start_listen():
+        if JointRecorder.IS_RECORDING:
+            return
+        rospy.init_node('goal_state_recorder')
+        JointRecorder.SUBSCRIBER = rospy.Subscriber('/joint_states', JointState,
+                                                    JointRecorder.joint_callback)
+
+    @staticmethod
+    def stop_listen():
+        JointRecorder.SUBSCRIBER.unregister()
+
+    @staticmethod
+    def start_record_callback(_):
+        JointRecorder.start_record()
+
+    @staticmethod
+    def stop_record_callback(_):
+        JointRecorder.stop_record()
+
+    @staticmethod
+    def start_record():
+        if JointRecorder.IS_RECORDING:
+            return
+        JointRecorder.IS_RECORDING = True
+
+        JointRecorder.start_listen()
+        JointRecorder.TIMER = rospy.Timer(rospy.Duration(JointRecorder.SAMPLETIME),
+                                          JointRecorder.grep_data)
+
+        while JointRecorder.IS_RECORDING:
+            rospy.sleep(JointRecorder.SAMPLETIME)
+
+        JointRecorder.TIMER.shutdown()
+        JointRecorder.SUBSCRIBER.unregister()
+        JointRecorder.save()
+
+    @staticmethod
+    def stop_record():
+        JointRecorder.IS_RECORDING = False
+
+    @staticmethod
+    def joint_callback(self, data):
+        if 'arm_left_1_joint' in data.name:
+            JointRecorder.LAST_DATA_LEFT = list(data.position)
+            JointRecorder.LAST_DATA_LEFT.extend(data.velocity)
+
+        if 'arm_right_1_joint' in data.name:
+            JointRecorder.LAST_DATA_RIGHT = list(data.position)
+            JointRecorder.LAST_DATA_RIGHT.extend(data.velocity)
+
+    @staticmethod
+    def grep_data(data):
+        if JointRecorder.LAST_DATA_LEFT is not None \
+                and JointRecorder.LAST_DATA_RIGHT is not None:
+            JointRecorder.JOINT_DATA['left'].append(JointRecorder.LAST_DATA_LEFT)
+            JointRecorder.JOINT_DATA['right'].append(JointRecorder.LAST_DATA_RIGHT)
+        else:
+            print 'NOT RECORDED, MISSING DATA...'
+
+        print 'RECORDED LEFT: ', JointRecorder.LAST_DATA_RIGHT
+        print 'RECORDED RIGHT:', JointRecorder.LAST_DATA_LEFT
+        print '--'
+
+    @staticmethod
+    def save(self):
+        try:
+            os.makedirs('trajectory_goal_data')
+        except OSError as ex:
+            if ex.errno != errno.EEXIST:
+                raise
+
+        with open('trajectory_goal_data/trajectory_goal.yaml', 'w') as f:
+            yaml.safe_dump(JointRecorder.JOINT_DATA, f)
 
 
 class JTP(object):

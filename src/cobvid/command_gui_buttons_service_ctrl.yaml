@@ -55,7 +55,6 @@ group92:
     ['TF', trigger, enable_tf],
     ['TRACK LEFT', trigger, enable_tracking_left],
     ['TRACK RIGHT', trigger, enable_tracking_right],
-
     ]
 group93:
   group_name: 'DISABLE CTRL'
@@ -74,4 +73,11 @@ group93:
     ['TF', trigger, disable_tf],
     ['TRACK LEFT', trigger, disable_tracking_left],
     ['TRACK RIGHT', trigger, disable_tracking_right],
+    ]
+group94:
+  group_name: 'REC'
+  component_name: cobvid
+  buttons: [
+    ['START', trigger, start_recording],
+    ['STOP', trigger, stop_recording],
     ]
