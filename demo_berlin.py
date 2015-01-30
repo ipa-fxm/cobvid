@@ -26,7 +26,7 @@ class Stuff(BaseScene):
         self.appendArms(self.movePose(duration=2, pose=self.inject_zero_velocity(self.pose_test)))
 
     def move_vel(self):
-        signal = self.lin(velocity=-0.3, duration=2)
+        signal = self.lin(velocity=-0.0, duration=2)
         self.appendVelArmLeft(j3=signal)
         self.appendVelArmRight(j3=signal*-1)
 
@@ -40,7 +40,7 @@ class Stuff(BaseScene):
             self.syncTimeline()
 
     def play_recorded_trajectory_goal(self):
-        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal.yaml')
+        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal.yaml', 1.0)
         self.appendArms(jtp_list)
 
     def move_hold_ball_start(self, duration=8):
@@ -262,23 +262,12 @@ class DemoScene(BaseScene):
 
 
     def scene_z(self, dotime=10, distance=0.1):
-        self.appendTFL(self.profile.tf_link_left_ofs)
-        self.appendTFR(self.profile.tf_link_right_ofs)
-        self.appendTFZ(self.lin(0, duration=1))
         self.syncTimeline()
-
-        self.start_tracking_left(self.profile.tf_link_left_name)
-        self.start_tracking_right(self.profile.tf_link_right_name)
 
         self.appendTFZ(self.sin(0, np.pi*2, dotime)*distance)
 
         self.syncTimeline()
 
-        self.stop_tracking_left(self.profile.tf_link_left_name)
-        self.stop_tracking_right(self.profile.tf_link_right_name)
-
-        self.appendTFZ(self.lin(0, duration=1))
-        self.syncTimeline()
 
     def part_start_tracking(self):
         self.syncTimeline()
@@ -306,12 +295,32 @@ class DemoScene(BaseScene):
 
         self.syncTimeline()
 
-    def scene_roll(self, dotime=8, rotation=np.pi/8):
+    def scene_roll(self, dotime=16, rotation=np.pi/8):
         self.syncTimeline()
 
         self.appendTFRoll(self.sin(0, np.pi*2, dotime)*rotation)
 
         self.syncTimeline()
+
+    def record_tf_holdball(self):
+        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal_tf_holdball.yaml', 1.0)
+        self.appendArms(jtp_list)
+
+    def record_tf_z(self):
+        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal_tf_z.yaml', 1.0)
+        self.appendArms(jtp_list)
+
+    def record_tf_roll(self):
+        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal_tf_roll.yaml', 1.0)
+        self.appendArms(jtp_list)
+
+    def record_tf_cross(self):
+        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal_tf_cross.yaml', 1.0)
+        self.appendArms(jtp_list)
+
+    def record_tf_circ_8(self):
+        jtp_list = JTP.load_trajectory_goal('trajectory_goal_data/trajectory_goal_tf_circ_8.yaml', 1.0)
+        self.appendArms(jtp_list)
 
     def scene_cross_yz(self, duration=15, distance=0.1):
 
@@ -380,7 +389,6 @@ class DemoScene(BaseScene):
         self.syncTimeline()
 
 
-
     def pose_boring_walk_front_back_c1(self, dotime=12):
         self.appendArms(self.movePose(duration=dotime, pose=self.inject_zero_velocity(ArmMovement.pose_boring_walk_front_back_c1)))
 
@@ -415,7 +423,7 @@ class DemoScene(BaseScene):
 
 
 if __name__ == '__main__':
-    cob4_2_profile = Profile(rate=30, max_linear_velocity=0.7,
+    cob4_2_profile = Profile(rate=50, max_linear_velocity=0.7,
                              max_angular_velocity=2.7,
                              max_linear_acceleration=0.022,
                              max_angular_acceleration=0.074,
@@ -433,13 +441,20 @@ if __name__ == '__main__':
 
     sh.add_service_callback('scenario/po1', demo.move_hold_ball_start, demo)
     sh.add_service_callback('scenario/br1', demo.hold_ball, demo)
-    sh.add_service_callback('scenario/sc1', demo.scene_z, demo)
+
+    sh.add_service_callback('scenario/sc1', [demo.part_start_tracking, demo.scene_z, demo.part_stop_tracking], demo)
     sh.add_service_callback('scenario/sc2', [demo.part_start_tracking, demo.scene_roll, demo.part_stop_tracking], demo)
-
-
     sh.add_service_callback('scenario/sc3', [demo.part_start_tracking, demo.scene_cross_yz, demo.part_stop_tracking], demo)
     sh.add_service_callback('scenario/sc4', [demo.part_start_tracking, demo.scene_circ_8_yz, demo.part_stop_tracking], demo)
     sh.add_service_callback('scenario/sc5', [demo.part_start_tracking, demo.scene_mp_circ_xy_yaw, demo.part_stop_tracking], demo)
+
+
+    sh.add_service_callback('scenario/rec1', demo.record_tf_holdball, demo)
+    sh.add_service_callback('scenario/rec2', demo.record_tf_z, demo)
+    sh.add_service_callback('scenario/rec3', demo.record_tf_roll, demo)
+    sh.add_service_callback('scenario/rec4', demo.record_tf_cross, demo)
+    sh.add_service_callback('scenario/rec5', demo.record_tf_circ_8, demo)
+    sh.add_service_callback('scenario/recx', [demo.record_tf_z, demo.record_tf_roll, demo.record_tf_cross, demo.record_tf_circ_8], demo)
 
     #sh.add_service_callback('scenario/sc3', demo.scene_cross_yz, demo)
     #sh.add_service_callback('scenario/sc4', demo.scene_circ_8_yz, demo)

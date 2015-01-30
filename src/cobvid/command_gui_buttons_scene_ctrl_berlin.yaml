@@ -6,7 +6,7 @@ group75:
     ['(2) CHEER ARMS UP', trigger, po2],
     ['(3) CHEER ARMS TURN', trigger, po3],
     ]
-group78:
+group77:
   group_name: 'DEMO'
   component_name: cobvid
   buttons: [
@@ -18,7 +18,18 @@ group78:
     ['TF CIRC 8 YZ', trigger, sc4],
     ['TF MP CIRC XY/Yaw', trigger, sc5],
     ['TF SCX', trigger, scx],
-
+    ]
+group78:
+  group_name: 'PLAY GOAL'
+  component_name: cobvid
+  buttons: [
+    ['P PRE BALL START', trigger, po1],
+    ['HOLDBALL', trigger, rec1],
+    ['Z', trigger, rec2],
+    ['ROLL', trigger, rec3],
+    ['CROSS', trigger, rec4],
+    ['CIRC 8', trigger, rec5],
+    ['ALL', trigger, recx],
     ]
 group79:
   group_name: 'TEST'
