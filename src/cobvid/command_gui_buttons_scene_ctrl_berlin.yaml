@@ -30,6 +30,7 @@ group78:
     ['CROSS', trigger, rec4],
     ['CIRC 8', trigger, rec5],
     ['ALL', trigger, recx],
+    ['ALL NO ROLL', trigger, recnr],
     ]
 group79:
   group_name: 'TEST'
@@ -40,8 +41,5 @@ group79:
     ['repeat combine', trigger, test3],
     ['play goal', trigger, test4],
     ['ball start', trigger, test5],
-    ['TF SPOS', trigger, test6],
-    ['TF Z', trigger, test7],
-    ['TF ROLL', trigger, test8],
     ['GET FRAME', trigger, test9],
     ]
