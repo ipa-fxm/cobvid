@@ -1057,9 +1057,9 @@ class Profile(object):
         self.tf_link_name = 'ball_link'
         self.tf_link_ofs = [0.6, 0, 0.9, 0, 0, 0]
         self.tf_link_left_name = self.tf_link_name + '_left'
-        self.tf_link_left_ofs = [0, 0.26, 0, np.pi/2, np.pi/2, np.pi/8]
+        self.tf_link_left_ofs = [0, 0.255, 0, np.pi/2, np.pi/2, np.pi/8]
         self.tf_link_right_name = self.tf_link_name + '_right'
-        self.tf_link_right_ofs = [0, -0.26, 0, np.pi/2, -np.pi/2, np.pi*7/8]
+        self.tf_link_right_ofs = [0, -0.255, 0, np.pi/2, -np.pi/2, np.pi*7/8]
 
 
 class Timeline(object):
@@ -1529,7 +1529,7 @@ class JointRecorder(object):
     IS_RECORDING = False
     LAST_DATA_LEFT = list()
     LAST_DATA_RIGHT = list()
-    JOINT_DATA = {'sampletime': 0.5, 'left': list(), 'right': list()}
+    JOINT_DATA = {'sampletime': 1.0, 'left': list(), 'right': list()}
     SUBSCRIBER = list()
     TIMER = list()
 
