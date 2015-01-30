@@ -38,11 +38,14 @@ group6:
     [home,move,home],
     [folded,move,folded],
     [side,move,side]]
+
+
 group92:
   group_name: 'ENABLE CTRL'
   component_name: cobvid
   buttons: [
     ['restart', trigger, restart],
+    ['TASK LOOP', trigger, enable_task_loop],
     ['FAKERUN', trigger, enable_fakerun],
     ['TABLERUN', trigger, enable_tablerun],
     ['BASE', trigger, enable_base],
@@ -61,6 +64,7 @@ group93:
   component_name: cobvid
   buttons: [
     ['status', trigger, status],
+    ['TASK LOOP', trigger, disable_task_loop],
     ['FAKERUN', trigger, disable_fakerun],
     ['TABLERUN', trigger, disable_tablerun],
     ['BASE', trigger, disable_base],

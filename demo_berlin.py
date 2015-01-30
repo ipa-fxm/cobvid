@@ -455,6 +455,7 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/rec4', demo.record_tf_cross, demo)
     sh.add_service_callback('scenario/rec5', demo.record_tf_circ_8, demo)
     sh.add_service_callback('scenario/recx', [demo.record_tf_z, demo.record_tf_roll, demo.record_tf_cross, demo.record_tf_circ_8], demo)
+    sh.add_service_callback('scenario/recnr', [demo.record_tf_z, demo.record_tf_cross, demo.record_tf_circ_8], demo)
 
     #sh.add_service_callback('scenario/sc3', demo.scene_cross_yz, demo)
     #sh.add_service_callback('scenario/sc4', demo.scene_circ_8_yz, demo)
@@ -472,9 +473,6 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/test3', test.move_combine_repeat, test)
 
     sh.add_service_callback('scenario/test4', test.play_recorded_trajectory_goal, test)
-    #sh.add_service_callback('scenario/test6', test.tf_test_startpos, test)
-    #sh.add_service_callback('scenario/test7', [test.tf_test_startpos, test.tf_test_z, test.tf_test_startpos], test)
-    #sh.add_service_callback('scenario/test8', test.tf_test_roll, test)
     sh.add_service_callback('scenario/test9', test.fake, test)
 
 
