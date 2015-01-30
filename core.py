@@ -296,6 +296,7 @@ class Plotter(object):
 
 class ROSBridge(object):
     ACTIVE_TASK = False
+    LOOP_TASK = False
 
     class Dummy(object):
         def __init__(self, topic_name):
@@ -482,6 +483,22 @@ class ROSBridge(object):
             self.new_st_gripper_left = ROSBridge.Dummy('GRIPPER LEFT GOAL')
             self.new_st_gripper_right = ROSBridge.Dummy('GRIPPER RIGHT GOAL')
 
+    @staticmethod
+    def enable_task_loop():
+        ROSBridge.LOOP_TASK = True
+
+    @staticmethod
+    def enable_task_loop_callback(_):
+        ROSBridge.LOOP_TASK = True
+
+    @staticmethod
+    def disable_task_loop():
+        ROSBridge.LOOP_TASK = False
+
+    @staticmethod
+    def disable_task_loop_callback(_):
+        ROSBridge.LOOP_TASK = False
+
     def _exec_goal(self, goal_timeline, step, synchronous_trajectory):
         if goal_timeline[step] is not None:
             synchronous_trajectory.send_jtp_list(goal_timeline[step])
@@ -622,65 +639,71 @@ class ROSBridge(object):
 
         ROSBridge.ACTIVE_TASK = True
 
-        for step in range(timeline.get_max_length_from_timelines()):
 
-            if self.exec_base:
-                twist = Twist()
-                twist.linear.x = timeline.TLX[step]
-                twist.linear.y = timeline.TLY[step]
-                twist.angular.z = timeline.TLTH[step]
-                self.base_publisher.publish(twist)
+        while True:
 
-            if self.exec_arm_left:
-                self._exec_goal(goal_timeline=timeline.ARML_GOAL, step=step,
-                                synchronous_trajectory=self.new_st_arm_left)
-                self._exec_velocity(velocity_timeline=timeline.ARML_VEL, step=step,
-                                    publisher=self.arm_left_velocity_publisher,
-                                    enable_idx=7)
+            for step in range(timeline.get_max_length_from_timelines()):
 
-            if self.exec_arm_right:
-                self._exec_goal(goal_timeline=timeline.ARMR_GOAL, step=step,
-                                synchronous_trajectory=self.new_st_arm_right)
-                self._exec_velocity(velocity_timeline=timeline.ARMR_VEL, step=step,
-                                    publisher=self.arm_right_velocity_publisher,
-                                    enable_idx=7)
+                if self.exec_base:
+                    twist = Twist()
+                    twist.linear.x = timeline.TLX[step]
+                    twist.linear.y = timeline.TLY[step]
+                    twist.angular.z = timeline.TLTH[step]
+                    self.base_publisher.publish(twist)
 
-            if self.exec_gripper_left:
-                self._exec_goal(goal_timeline=timeline.GRIPPERL_GOAL, step=step,
-                                synchronous_trajectory=self.new_st_gripper_left)
+                if self.exec_arm_left:
+                    self._exec_goal(goal_timeline=timeline.ARML_GOAL, step=step,
+                                    synchronous_trajectory=self.new_st_arm_left)
+                    self._exec_velocity(velocity_timeline=timeline.ARML_VEL, step=step,
+                                        publisher=self.arm_left_velocity_publisher,
+                                        enable_idx=7)
 
-            if self.exec_gripper_right:
-                self._exec_goal(goal_timeline=timeline.GRIPPERR_GOAL, step=step,
-                                synchronous_trajectory=self.new_st_gripper_right)
+                if self.exec_arm_right:
+                    self._exec_goal(goal_timeline=timeline.ARMR_GOAL, step=step,
+                                    synchronous_trajectory=self.new_st_arm_right)
+                    self._exec_velocity(velocity_timeline=timeline.ARMR_VEL, step=step,
+                                        publisher=self.arm_right_velocity_publisher,
+                                        enable_idx=7)
 
-            if self.exec_mimic and timeline.MIMIC[step] is not None:
-                self.mimic_action_call.send_goal(timeline.MIMIC[step])
+                if self.exec_gripper_left:
+                    self._exec_goal(goal_timeline=timeline.GRIPPERL_GOAL, step=step,
+                                    synchronous_trajectory=self.new_st_gripper_left)
 
+                if self.exec_gripper_right:
+                    self._exec_goal(goal_timeline=timeline.GRIPPERR_GOAL, step=step,
+                                    synchronous_trajectory=self.new_st_gripper_right)
 
-            if self.exec_led and timeline.LED[step] is not None:
-                print timeline.LED[step]
-                self.led_torso_call(timeline.LED[step])
-
-            if self.exec_tf:
-                self.tf_call(timeline, step)
-
-            #TODO: needs refactoring to fix redundancy
-            if self.exec_tracking_left and timeline.TF_TRACK_LEFT[step] is not None:
-                if timeline.TF_TRACK_LEFT[step][1]:
-                    self.start_tracking_left_srv(timeline.TF_TRACK_LEFT[step][0])
-                else:
-                    self.stop_tracking_left_srv()
-
-            if self.exec_tracking_right and timeline.TF_TRACK_RIGHT[step] is not None:
-                if timeline.TF_TRACK_RIGHT[step][1]:
-                    self.start_tracking_right_srv(timeline.TF_TRACK_RIGHT[step][0])
-                else:
-                    self.stop_tracking_right_srv()
+                if self.exec_mimic and timeline.MIMIC[step] is not None:
+                    self.mimic_action_call.send_goal(timeline.MIMIC[step])
 
 
+                if self.exec_led and timeline.LED[step] is not None:
+                    print timeline.LED[step]
+                    self.led_torso_call(timeline.LED[step])
+
+                if self.exec_tf:
+                    self.tf_call(timeline, step)
+
+                #TODO: needs refactoring to fix redundancy
+                if self.exec_tracking_left and timeline.TF_TRACK_LEFT[step] is not None:
+                    if timeline.TF_TRACK_LEFT[step][1]:
+                        self.start_tracking_left_srv(timeline.TF_TRACK_LEFT[step][0])
+                    else:
+                        self.stop_tracking_left_srv()
+
+                if self.exec_tracking_right and timeline.TF_TRACK_RIGHT[step] is not None:
+                    if timeline.TF_TRACK_RIGHT[step][1]:
+                        self.start_tracking_right_srv(timeline.TF_TRACK_RIGHT[step][0])
+                    else:
+                        self.stop_tracking_right_srv()
 
 
-            rospy.sleep(timeline.profile.sample_time)
+
+
+                rospy.sleep(timeline.profile.sample_time)
+
+            if not ROSBridge.LOOP_TASK:
+                break
 
         ROSBridge.ACTIVE_TASK = False
 
@@ -740,6 +763,9 @@ class ServiceHandler(object):
         rospy.init_node('scenario')
         rospy.Service('/scenario/restart', Trigger, self._inplace_restart)
         rospy.Service('/scenario/status', Trigger, self.print_startup_args)
+
+        rospy.Service('/scenario/enable_task_loop', Trigger, ROSBridge.enable_task_loop_callback)
+        rospy.Service('/scenario/disable_task_loop', Trigger, ROSBridge.disable_task_loop_callback)
 
         rospy.Service('/scenario/enable_fakerun', Trigger, self._enable_fakerun)
         rospy.Service('/scenario/disable_fakerun', Trigger, self._disable_fakerun)
@@ -813,6 +839,8 @@ class ServiceHandler(object):
         colorwrap = lambda value: '%s%s%s' % (colorama.Fore.GREEN if value else colorama.Fore.RED, value, colorama.Fore.RESET)
 
         print
+        print
+        print 'LOOP TASK:           ', colorwrap(ROSBridge.LOOP_TASK)
         print
         print 'FAKERUN:             ', colorwrap(self.is_fakerun)
         print 'TABLERUN:            ', colorwrap(self.is_tablerun)
