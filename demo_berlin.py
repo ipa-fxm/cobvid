@@ -420,6 +420,12 @@ class DemoScene(BaseScene):
 
         self.syncTimeline()
 
+    def led_color_demo(self, steptime=1):
+        self.syncTimeline()
+        self.appendLed(r=1, g=0, b=0, a=1, frequency=0, mode=1)
+        fillData = [None]*self.calc_samples(steptime)
+        self.LED.extend(fillData)
+        self.syncTimeline()
 
 
 if __name__ == '__main__':
@@ -456,6 +462,8 @@ if __name__ == '__main__':
     sh.add_service_callback('scenario/rec5', demo.record_tf_circ_8, demo)
     sh.add_service_callback('scenario/recx', [demo.record_tf_z, demo.record_tf_roll, demo.record_tf_cross, demo.record_tf_circ_8], demo)
     sh.add_service_callback('scenario/recnr', [demo.record_tf_z, demo.record_tf_cross, demo.record_tf_circ_8], demo)
+    sh.add_service_callback('scenario/recxx', [demo.move_hold_ball_start, demo.record_tf_holdball, demo.record_tf_z, demo.record_tf_roll, demo.record_tf_cross, demo.record_tf_circ_8], demo)
+    sh.add_service_callback('scenario/led', demo.led_color_demo, demo)
 
     #sh.add_service_callback('scenario/sc3', demo.scene_cross_yz, demo)
     #sh.add_service_callback('scenario/sc4', demo.scene_circ_8_yz, demo)

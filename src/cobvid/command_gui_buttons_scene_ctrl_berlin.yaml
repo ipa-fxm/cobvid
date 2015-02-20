@@ -31,6 +31,8 @@ group78:
     ['CIRC 8', trigger, rec5],
     ['ALL', trigger, recx],
     ['ALL NO ROLL', trigger, recnr],
+    ['EXPD', trigger, recxx],
+    ['LED', trigger, led],
     ]
 group79:
   group_name: 'TEST'
