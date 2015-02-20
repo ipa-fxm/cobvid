@@ -422,9 +422,23 @@ class DemoScene(BaseScene):
 
     def led_color_demo(self, steptime=1):
         self.syncTimeline()
+
         self.appendLed(r=1, g=0, b=0, a=1, frequency=0, mode=1)
         fillData = [None]*self.calc_samples(steptime)
         self.LED.extend(fillData)
+
+        self.appendLed(r=0, g=1, b=0, a=1, frequency=0, mode=1)
+        fillData = [None]*self.calc_samples(steptime)
+        self.LED.extend(fillData)
+
+        self.appendLed(r=0, g=0, b=1, a=1, frequency=0, mode=1)
+        fillData = [None]*self.calc_samples(steptime)
+        self.LED.extend(fillData)
+
+        self.appendLed()
+        fillData = [None]*self.calc_samples(steptime)
+        self.LED.extend(fillData)
+
         self.syncTimeline()
 
 
