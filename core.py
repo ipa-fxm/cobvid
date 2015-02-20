@@ -1461,6 +1461,8 @@ class Timeline(object):
         timelines.extend([self.TFLX, self.TFLY, self.TFLZ, self.TFLRoll, self.TFLPitch, self.TFLYaw])
         timelines.extend([self.TFRX, self.TFRY, self.TFRZ, self.TFRRoll, self.TFRPitch, self.TFRYaw])
         timelines.extend([self.TF_TRACK_LEFT, self.TF_TRACK_RIGHT])
+        timelines.extend([self.LED])
+
         return max(map(len, timelines))
 
     def __len__(self):
