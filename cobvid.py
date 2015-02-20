@@ -24,8 +24,8 @@ class StuffToTest(BaseScene):
         self.syncTimeline()
 
     def test_speed_linear(self):
-        self.appendX(self.lin(duration=2, velocity=0))
-        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.7, velocity_end=0, acc_percentage=0.4, dec_percentage=0.4, duration=3))
+        #self.appendX(self.lin(duration=2, velocity=0))
+        self.appendX(self.lin_acc(velocity_start=0, velocity_lin=0.7, velocity_end=0, acc_percentage=0.25, dec_percentage=0.25, duration=2))
         self.syncTimeline()
 
         #self.appendReversePath()
@@ -43,16 +43,16 @@ class StuffToTest(BaseScene):
         self.appendReversePath()
 
     def test_speed_circula_path(self):
-        self.appendX(self.lin(duration=3, velocity=0))
+        #self.appendX(self.lin(duration=3, velocity=0))
         self.syncTimeline()
 
-        tlx, tlth = self.circular_path(radius=5, phi=np.pi/2, duration=3, acc_percentage=0.2, dec_percentage=0.2)
+        tlx, tlth = self.circular_path(radius=3, phi=np.pi/2, duration=10, acc_percentage=0.2, dec_percentage=0.2)
         self.appendX(tlx)
         self.appendTH(tlth)
 
         self.syncTimeline()
 
-        self.appendReversePath()
+        #self.appendReversePath()
 
     def tmp_pose(self):
 
@@ -770,7 +770,7 @@ class EndingScene_11(BaseScene):
 
 
 if __name__ == '__main__':
-    cob4_2_profile = Profile(rate=30, max_linear_velocity=0.7, max_angular_velocity=2.7,
+    cob4_2_profile = Profile(rate=70, max_linear_velocity=0.7, max_angular_velocity=2.7,
                              max_linear_acceleration=0.022, max_angular_acceleration=0.074, switch_vel_to_goal_timeout=0.7  )
 
     dummy = DummyScene(profile=cob4_2_profile)
@@ -789,11 +789,11 @@ if __name__ == '__main__':
     #boring.act_1_slender_around()
     #boring.bridge_act_2_arms_startpos()
     #boring.lab_act_2_1_to_window()
-    #boring.act_2_1_to_window()
+    boring.act_2_1_to_window()
     #boring.lab_act_2_2_away_from_window()
     #boring.act_2_2_away_from_window()
 
-    boring.act_3_move_corner_shock()
+    #boring.act_3_move_corner_shock()
 
     #discover.lab_act_4_run_away()
     #discover.act_4_run_away()
@@ -810,7 +810,7 @@ if __name__ == '__main__':
     #cheer.act_7_cheer_arms_up()
 
     #cheer.lab_act_8_cheering_turn()
-    #cheer.act_8_cheering_turn()
+    cheer.act_8_cheering_turn()
 
     #cheer.lab_act_9_drumming_rotmove_side_drive()
     #cheer.act_9_drumming_rotmove_side_drive()
@@ -821,7 +821,7 @@ if __name__ == '__main__':
     #ending.act_11_the_end()
 
     #test.test_map()
-    #test.test_speed_linear()
+    test.test_speed_linear()
     #test.test_speed_angular()
     #test.test_speed_circula_path()
 
@@ -836,11 +836,11 @@ if __name__ == '__main__':
     # SETTING MASTER TIMELINE
     ##########################
 
-    masterTimeline = boring
+    #masterTimeline = boring
     #masterTimeline = discover
     #masterTimeline = findrose
     #masterTimeline = present
-    #masterTimeline = cheer
+    masterTimeline = cheer
     #masterTimeline = test
     #masterTimeline = ending
 

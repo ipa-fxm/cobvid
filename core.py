@@ -17,6 +17,7 @@ try:
     print 'mimic msg stuff found'
 
     from cob_srvs.srv import SetString
+    import tf
 
 
     from cob_light.srv import SetLightMode, SetLightModeRequest
@@ -32,7 +33,6 @@ except:
 import rospy
 import rosnode
 import actionlib
-import tf
 
 # ROS MSGS
 from geometry_msgs.msg import Twist
@@ -173,6 +173,9 @@ class Plotter(object):
         ax1.plot(self.tdata, self.TLTHD)
         ax1.legend(legend, loc=2)
         ax1.set_title('Distance')
+        ax1.set_ylabel('$m$; $rad$')
+        ax1.xaxis.set_label_coords(0.95, -0.12)
+        ax1.set_xlabel('t [s]')
         ax1.grid(True)
 
         ##################################################
@@ -182,17 +185,20 @@ class Plotter(object):
         accwarn3 = np.abs(self.timeline.TLTH) > self.timeline.profile.max_angular_velocity
 
         collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_velocity, ymax=self.timeline.profile.max_linear_velocity, where=accwarn1, facecolor='blue', alpha=0.2)
-        ax2.add_collection(collection)
+        #ax2.add_collection(collection)
         collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_velocity, ymax=self.timeline.profile.max_linear_velocity, where=accwarn2, facecolor='green', alpha=0.2)
-        ax2.add_collection(collection)
+        #ax2.add_collection(collection)
         collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_angular_velocity, ymax=self.timeline.profile.max_angular_velocity, where=accwarn3, facecolor='red', alpha=0.2)
-        ax2.add_collection(collection)
+        #ax2.add_collection(collection)
 
         ax2.plot(self.tdata, self.timeline.TLX)
         ax2.plot(self.tdata, self.timeline.TLY)
         ax2.plot(self.tdata, self.timeline.TLTH)
         ax2.legend(legend, loc=2)
         ax2.set_title('Velocity')
+        ax2.set_ylabel('$m/s$; $rad/s$')
+        ax2.xaxis.set_label_coords(0.95, -0.12)
+        ax2.set_xlabel('t [s]')
         ax2.grid(True)
 
         ##################################################
@@ -202,6 +208,9 @@ class Plotter(object):
         ax3.plot(self.tdata, self.TLTHA)
         ax3.legend(legend, loc=2)
         ax3.set_title('Acceleration')
+        ax3.set_ylabel('$m/s^2$; $rad/s^2$')
+        ax3.xaxis.set_label_coords(0.95, -0.12)
+        ax3.set_xlabel('t [s]')
         ax3.grid(True)
 
         accwarn1 = np.abs(self.TLXA) > self.timeline.profile.max_linear_acceleration
@@ -209,11 +218,11 @@ class Plotter(object):
         accwarn3 = np.abs(self.TLTHA) > self.timeline.profile.max_angular_acceleration
 
         collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_acceleration, ymax=self.timeline.profile.max_linear_acceleration, where=accwarn1, facecolor='blue', alpha=0.2)
-        ax3.add_collection(collection)
+        #ax3.add_collection(collection)
         collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_linear_acceleration, ymax=self.timeline.profile.max_linear_acceleration, where=accwarn2, facecolor='green', alpha=0.2)
-        ax3.add_collection(collection)
+        #ax3.add_collection(collection)
         collection = collections.BrokenBarHCollection.span_where(self.tdata, ymin=-self.timeline.profile.max_angular_acceleration, ymax=self.timeline.profile.max_angular_acceleration, where=accwarn3, facecolor='red', alpha=0.2)
-        ax3.add_collection(collection)
+        #ax3.add_collection(collection)
 
         plt.tight_layout()
 
@@ -270,7 +279,7 @@ class Plotter(object):
 
         for i in range(len(x)):
             if accwarn[i]:
-                ax1.plot(x[i], y[i], '.', color=(0.8, 0, 0), alpha=0.1, markersize=50)
+                pass#ax1.plot(x[i], y[i], '.', color=(0.8, 0, 0), alpha=0.1, markersize=50)
 
         for i in range(len(x))[::15]:
             if accx[i]:

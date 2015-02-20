@@ -3,11 +3,13 @@
 
 from __future__ import division
 from sympy import *
+
 x, y, z, t = symbols('x y z t')
 k, m, n = symbols('k m n', integer=True)
 pacc, pdec = symbols('p_acc p_dec')
 phi, wmax, T = symbols('phi omega_max T')
 timescale = symbols('TIMESCALE')
+
 print
 init_printing(wrap_line=False)
 
@@ -39,17 +41,17 @@ print
 print 'Acceleration:'
 print
 wtacc = Eq(w(t), simplify(profile.subs(timescale, pacc)))
-pprint(wtacc)
+pprint(latex(wtacc))
 
 print
 print 'Linear:'
 print
 
 wtacc = Eq(w(t), simplify((wmax*t).subs(timescale, pacc).subs(pacc, 0.1).subs(pdec, 0.1)))
-pprint(wtacc)
+pprint(latex(wtacc))
 
 print
 print 'Deceleration:'
 print
 wtacc = Eq(w(t), simplify(profile.subs(timescale, pdec)))
-pprint(wtacc)
+pprint(latex(wtacc))
