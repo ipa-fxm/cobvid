@@ -324,7 +324,7 @@ class ROSBridge(object):
     def __init__(self, fakerun=False, tablerun=False, exec_base=False,
                  exec_arm_left=False, exec_arm_right=False,
                  exec_gripper_left=False, exec_gripper_right=False,
-                 exec_mimic=False, exec_led=False, exec_tf=False,
+                 exec_mimic=False, exec_led=False, exec_led_torso=False, exec_tf=False,
                  exec_tracking_left=False, exec_tracking_right=False, timeout=5):
         self.tablerun = tablerun
         self.exec_base = exec_base
@@ -334,6 +334,7 @@ class ROSBridge(object):
         self.exec_gripper_right = exec_gripper_right
         self.exec_mimic = exec_mimic
         self.exec_led = exec_led
+        self.exec_led_torso = exec_led_torso
         self.exec_tf = exec_tf
         self.exec_tracking_left = exec_tracking_left
         self.exec_tracking_right = exec_tracking_right
@@ -419,13 +420,24 @@ class ROSBridge(object):
         # LEDs
         if not fakerun and isLive and exec_led:
             try:
-                rospy.wait_for_service(LED_TORSO_SERVICE_TOPIC, timeout=timeout)
+                rospy.wait_for_service(LED_BASE_SERVICE_TOPIC, timeout=timeout)
             except rospy.ROSException:
                 PrettyOutput.init_exit_msg('LEDs')
 
+            self.led_base_call = rospy.ServiceProxy(LED_BASE_SERVICE_TOPIC, SetLightMode)
+        else:
+            self.led_base_call = ROSBridge.Dummy('LED').param_call
+
+        # LEDs TORSO
+        if not fakerun and isLive and exec_led_torso:
+            try:
+                rospy.wait_for_service(LED_TORSO_SERVICE_TOPIC, timeout=timeout)
+            except rospy.ROSException:
+                PrettyOutput.init_exit_msg('LEDs TORSO')
+
             self.led_torso_call = rospy.ServiceProxy(LED_TORSO_SERVICE_TOPIC, SetLightMode)
         else:
-            self.led_torso_call = ROSBridge.Dummy('LED').param_call
+            self.led_torso_call = ROSBridge.Dummy('LED TORSO').param_call
 
 
         if not fakerun and isLive:
@@ -688,6 +700,10 @@ class ROSBridge(object):
 
                 if self.exec_led and timeline.LED[step] is not None:
                     print timeline.LED[step]
+                    self.led_base_call(timeline.LED[step])
+
+                if self.exec_led_torso and timeline.LED[step] is not None:
+                    print timeline.LED[step]
                     self.led_torso_call(timeline.LED[step])
 
                 if self.exec_tf:
@@ -754,6 +770,7 @@ class ServiceHandler(object):
         self.is_ros_base = False
         self.is_ros_mimic = False
         self.is_ros_led = False
+        self.is_ros_led_torso = False
 
         self.is_ros_tf = False
         self.is_tracking_left = False
@@ -803,6 +820,9 @@ class ServiceHandler(object):
         rospy.Service('/scenario/enable_led', Trigger, self._enable_led)
         rospy.Service('/scenario/disable_led', Trigger, self._disable_led)
 
+        rospy.Service('/scenario/enable_led_torso', Trigger, self._enable_led_torso)
+        rospy.Service('/scenario/disable_led_torso', Trigger, self._disable_led_torso)
+
         rospy.Service('/scenario/enable_tf', Trigger, self._enable_tf)
         rospy.Service('/scenario/disable_tf', Trigger, self._disable_tf)
 
@@ -830,7 +850,7 @@ class ServiceHandler(object):
 
         self.is_ros = '-ros' in sys.argv
         if self.is_ros:
-            n_ros_params = 10
+            n_ros_params = 11
             idx = sys.argv.index('-ros') + 1
             self.is_ros_arm_left = 'arm_left' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_arm_right = 'arm_right' in sys.argv[idx:idx+n_ros_params]
@@ -839,6 +859,7 @@ class ServiceHandler(object):
             self.is_ros_base = 'base' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_mimic = 'mimic' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_led = 'led' in sys.argv[idx:idx+n_ros_params]
+            self.is_ros_led_torso = 'led_torso' in sys.argv[idx:idx+n_ros_params]
             self.is_ros_tf = 'tf' in sys.argv[idx:idx+n_ros_params]
             self.is_tracking_left = 'tracking_left' in sys.argv[idx:idx+n_ros_params]
             self.is_tracking_right = 'tracking_right' in sys.argv[idx:idx+n_ros_params]
@@ -865,6 +886,7 @@ class ServiceHandler(object):
         print
         print '    MIMIC:           ', colorwrap(self.is_ros_mimic)
         print '    LED:             ', colorwrap(self.is_ros_led)
+        print '    LED TORSO:             ', colorwrap(self.is_ros_led_torso)
         print
         print '    TF :             ', colorwrap(self.is_ros_tf)
         print '    TRACKING LEFT :  ', colorwrap(self.is_tracking_left)
@@ -1022,6 +1044,12 @@ class ServiceHandler(object):
     def _disable_led(self, *args):
         self._disable_argv('led', self.is_ros_led)
 
+    def _enable_led_torso(self, *args):
+        self._enable_argv('led_torso', self.is_ros_led_torso)
+
+    def _disable_led_torso(self, *args):
+        self._disable_argv('led_torso', self.is_ros_led_torso)
+
     def _enable_tf(self, *args):
         self._enable_argv('tf', self.is_ros_tf)
 
@@ -1058,6 +1086,7 @@ class ServiceHandler(object):
                                exec_arm_right=self.is_ros_arm_right,
                                exec_mimic=self.is_ros_mimic,
                                exec_led=self.is_ros_led,
+                               exec_led_torso=self.is_ros_led_torso,
                                exec_gripper_left=self.is_ros_gripper_left,
                                exec_gripper_right=self.is_ros_gripper_right,
                                exec_tf=self.is_ros_tf,
