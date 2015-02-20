@@ -420,7 +420,7 @@ class DemoScene(BaseScene):
 
         self.syncTimeline()
 
-    def led_color_demo(self, steptime=1):
+    def led_color_demo(self, steptime=3):
         self.syncTimeline()
 
         self.appendLed(r=1, g=0, b=0, a=1, frequency=0, mode=1)
