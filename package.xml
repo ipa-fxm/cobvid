@@ -15,6 +15,7 @@
   <run_depend>rospy</run_depend>
   <run_depend>trajectory_msgs</run_depend>
   <run_depend>cob_mimic</run_depend>
+  <run_depend>cob_srvs</run_depend>
 
   <export>
 

@@ -8,7 +8,7 @@ try:
     isLive=True
     roslib.load_manifest('cobvid')
     print 'cobvid found'
-    from cob_srvs.srv import Trigger
+    from cob_srvs.srv import Trigger, TriggerRequest, TriggerResponse
     print 'trigger srv found'
 
     from cob_mimic.srv import SetMimic, SetMimicRequest
@@ -905,6 +905,9 @@ class ServiceHandler(object):
             print colorama.Fore.MAGENTA,
             PrettyOutput.attation_msg('END OF CALLBACK: %s' % service_name)
             print colorama.Fore.RESET
+            res = TriggerResponse()
+            res.success.data = True
+            return res
         return callback_function
 
     def add_service_callback(self, service_name, func_list, bound_timline_object):
