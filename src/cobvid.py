@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 #-*- coding: utf-8 -*-
 
-from core import *
+from cobvid.core import *
 
 class StuffToTest(BaseScene):
     def __init__(self, profile):
