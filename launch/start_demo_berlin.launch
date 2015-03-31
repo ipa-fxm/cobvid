@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+
+	<!-- start demo -->
+	<node pkg="cobvid" type="demo_berlin.py" name="demo_berlin" args="-servicemode -ros arm_left arm_right" cwd="node" respawn="false" output="screen"/>
+
+</launch>
