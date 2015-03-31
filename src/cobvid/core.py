@@ -3,6 +3,7 @@
 
 # ROS IMPORTS
 import roslib
+import rospkg
 
 try:
     isLive=True
@@ -1761,8 +1762,11 @@ class JTP(object):
 
     @staticmethod
     def load_trajectory_goal(filename, replaySpeedFactor=1.0):
-
-        with open(filename, 'r') as f:
+        
+        rospack = rospkg.RosPack()
+        full_filename = rospack.get_path('cobvid') + '/' + filename
+        
+        with open(full_filename, 'r') as f:
             trajectory_goal_data = yaml.safe_load(f)
 
         sampleTime = trajectory_goal_data['sampletime']/replaySpeedFactor
