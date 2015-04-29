@@ -14,8 +14,9 @@
 	<!-- start command_gui -->
 	<node ns="command_gui" pkg="cob_command_gui" type="knoeppkes.py" name="$(anon command_gui_node)" cwd="node" respawn="false" output="screen" >
 		<!-- upload button parameters -->
-		<rosparam command="load" ns="control_buttons" file="$(find cobvid)/command_gui_buttons_cobvid.yaml"/>
-		<rosparam command="load" ns="nav_buttons" file="$(arg pkg_env_config)/$(arg robot_env)/command_gui_buttons.yaml"/>
+		<rosparam ns="control_buttons" command="load" file="$(find cobvid)/config/command_gui_buttons_scene_ctrl_berlin.yaml"/>
+		<rosparam ns="control_buttons" command="load" file="$(find cobvid)/config/command_gui_buttons_service_ctrl.yaml"/>
+		<rosparam ns="nav_buttons" command="load" file="$(arg pkg_env_config)/$(arg robot_env)/command_gui_buttons.yaml"/>
 	</node>
 
 </launch>

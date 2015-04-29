@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package>
+  <name>cobvid</name>
+  <version>0.5.0</version>
+  <description>The cobvid package</description>
+
+  <maintainer email="fmw@ipa.fhg.de">Florian Weisshardt</maintainer>
+
+  <license>LGPL</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <run_depend>control_msgs</run_depend>
+  <run_depend>actionlib</run_depend>
+  <run_depend>rospy</run_depend>
+  <run_depend>trajectory_msgs</run_depend>
+  <run_depend>cob_mimic</run_depend>
+  <run_depend>cob_srvs</run_depend>
+
+  <export>
+
+  </export>
+</package>

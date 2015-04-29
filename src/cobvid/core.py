@@ -3,12 +3,13 @@
 
 # ROS IMPORTS
 import roslib
+import rospkg
 
 try:
     isLive=True
     roslib.load_manifest('cobvid')
     print 'cobvid found'
-    from cob_srvs.srv import Trigger
+    from cob_srvs.srv import Trigger, TriggerRequest, TriggerResponse
     print 'trigger srv found'
 
     from cob_mimic.srv import SetMimic, SetMimicRequest
@@ -905,6 +906,9 @@ class ServiceHandler(object):
             print colorama.Fore.MAGENTA,
             PrettyOutput.attation_msg('END OF CALLBACK: %s' % service_name)
             print colorama.Fore.RESET
+            res = TriggerResponse()
+            res.success.data = True
+            return res
         return callback_function
 
     def add_service_callback(self, service_name, func_list, bound_timline_object):
@@ -1758,8 +1762,11 @@ class JTP(object):
 
     @staticmethod
     def load_trajectory_goal(filename, replaySpeedFactor=1.0):
-
-        with open(filename, 'r') as f:
+        
+        rospack = rospkg.RosPack()
+        full_filename = rospack.get_path('cobvid') + '/' + filename
+        
+        with open(full_filename, 'r') as f:
             trajectory_goal_data = yaml.safe_load(f)
 
         sampleTime = trajectory_goal_data['sampletime']/replaySpeedFactor
