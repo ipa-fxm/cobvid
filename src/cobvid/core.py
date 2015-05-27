@@ -9,7 +9,7 @@ try:
     isLive=True
     roslib.load_manifest('cobvid')
     print 'cobvid found'
-    from cob_srvs.srv import Trigger, TriggerRequest, TriggerResponse
+    from std_srvs.srv import Trigger
     print 'trigger srv found'
 
     from cob_mimic.srv import SetMimic, SetMimicRequest
@@ -907,7 +907,7 @@ class ServiceHandler(object):
             PrettyOutput.attation_msg('END OF CALLBACK: %s' % service_name)
             print colorama.Fore.RESET
             res = TriggerResponse()
-            res.success.data = True
+            res.success = True
             return res
         return callback_function
 

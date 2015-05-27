@@ -9,13 +9,15 @@
   <license>LGPL</license>
 
   <buildtool_depend>catkin</buildtool_depend>
-  
-  <run_depend>control_msgs</run_depend>
-  <run_depend>actionlib</run_depend>
+
   <run_depend>rospy</run_depend>
-  <run_depend>trajectory_msgs</run_depend>
-  <run_depend>cob_mimic</run_depend>
+  <run_depend>std_srvs</run_depend>
   <run_depend>cob_srvs</run_depend>
+  <run_depend>control_msgs</run_depend>
+  <run_depend>trajectory_msgs</run_depend>
+  <run_depend>actionlib</run_depend>
+  <run_depend>cob_mimic</run_depend>
+
 
   <export>
 
